@@ -1,0 +1,184 @@
+# 嵌入式开发项目 .gitignore
+
+# IDE 和构建系统文件
+## Keil MDK - 忽略用户特定文件和构建输出
+*.uvguix.*
+*.uvoptx
+*.uvprojx
+*.uvmpw
+*.uv2
+*.dep
+*.lnp
+*.lst
+*.map
+*.crf
+*.d
+*.axf
+*.sct
+!SDK/platform/soc/linker/keil/flash_scatter_common.sct
+!GR5526_LCD_Keil_交接工程/SDK/platform/soc/linker/keil/flash_scatter_common.sct
+*.build_log.htm
+
+## IAR Embedded Workbench - 忽略用户特定文件和构建输出
+*.ewd
+*.ewp
+*.ewt
+*.eww
+*.dep
+*.pbd
+*.pbi
+*.pbt
+*.pbw
+*.xcl
+*.icf
+
+## GCC/Makefile 构建输出
+*.o
+*.obj
+*.elf
+*.bin
+*.hex
+*.map
+*.lst
+*.a
+*.so
+*.lib
+*.dll
+*.exe
+
+## 调试器和编程器文件
+*.jlink
+*.jflash
+*.cfg
+
+# 构建目录
+build/
+Debug/
+Release/
+obj/
+out/
+dist/
+bin/
+
+# Keil 特定目录
+Listings/
+Objects/
+
+# 编译中间文件
+*.i
+*.ii
+*.s
+*.su
+*.gcno
+*.gcda
+
+# 预编译头文件
+*.gch
+*.pch
+
+# 依赖文件
+*.d
+*.d.*
+
+# 日志文件
+*.log
+*.tlog
+*.qm
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+*.swp
+*~
+*.bak
+*.tmp
+*.temp
+
+# 版本控制系统
+.vs/
+.vscode/
+.idea/
+*.swp
+*~
+
+# 用户特定文件 - 只忽略 IDE 用户文件，不忽略源代码目录
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# 二进制和可执行文件
+*.exe
+*.dll
+*.so
+*.dylib
+
+# 库文件
+*.lib
+*.a
+*.la
+*.lo
+
+# 调试文件
+*.pdb
+*.idb
+*.ilk
+
+# 临时文件
+*.tmp
+*.temp
+
+# 文档生成
+docs/_build/
+docs/_out/
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 项目特定忽略
+## SDK 构建输出（如果有）
+SDK/build/
+SDK/out/
+
+## 示例项目构建输出
+SDK/projects/**/build/
+SDK/projects/**/out/
+
+# 不要忽略源代码和配置文件
+!*.c
+!*.h
+!*.cpp
+!*.hpp
+!*.s
+!*.ld
+!*.mk
+!Makefile
+!*.mk
+!*.py
+!*.md
+!*.txt
+!*.csv
+!*.json
+!*.xml
+!*.yml
+!*.yaml
+
+# 例外规则：允许跟踪某些重要的项目配置文件
+## GCC 目录中的链接器脚本和 Makefile
+!GCC/gcc_linker.lds
+!GCC/Makefile
+
+## IAR 目录中的模板文件（如果需要）
+# !IAR/ble_app_template.ewp
+# !IAR/ble_app_template.eww
+# !IAR/gr5526.icf
+
+## Keil 目录中的构建工具和重要文件
+!Keil_5/keil2makefile.py
+# !Keil_5/ble_app_example.uvprojx
+# !Keil_5/flash_scatter_common.sct
+
+# 超过 GitHub 单文件限制的预编译库
+SDK/platform/soc/linker/keil/ble_sdk.lib

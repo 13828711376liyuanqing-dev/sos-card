@@ -1,0 +1,32 @@
+{
+  "schema": "YP001_LOCAL_BASELINE_REGISTRY_V1",
+  "control_branch": "codex/version-protection-20261107",
+  "scope": "Local control history and byte anchors; HEAD is not complete firmware source or build identity.",
+  "baselines": [
+    {
+      "baseline_id": "YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R2",
+      "directory": "firmware_releases/baselines/YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R2",
+      "manifest_sha256": "d24e1a6de9428c45f8b78f199e3b6dde4538803c4e33660fcf1b2d21139c0fba",
+      "status": "OTA_PASS_WITH_KNOWN_ISSUES",
+      "source_alignment": "pending",
+      "production_promotion": "blocked",
+      "files": 9094,
+      "bytes": 422681207,
+      "rollback_plan": "firmware_releases/baselines/YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R2/rollback/执行卡.md"
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "GR_ACTIVATE_REPLAY_20261107_HOST_ONLY",
+      "directory": "firmware_releases/candidates/GR_ACTIVATE_REPLAY_20261107_HOST_ONLY",
+      "manifest_sha256": "74f1b4d6ca7c0643ffe61c54cfd16065e8bf667818d13581ef8e484889a27bb6",
+      "parent_baseline_id": "YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R2",
+      "status": "SOURCE_HOST_PASS_NOT_BUILT_NOT_FLASHED",
+      "release_identity": "UNASSIGNED_REBUILD_REQUIRED"
+    }
+  ],
+  "incomplete_directories": [
+    "firmware_releases/baselines/YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES",
+    "firmware_releases/baselines/YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R1"
+  ]
+}

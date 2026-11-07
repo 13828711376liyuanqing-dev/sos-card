@@ -1,0 +1,19 @@
+{
+  "_comment": "SAM | 2026-11-04 +08:00 | YP001 OTA size red lines (user request). Master file: tools/toolkit/budget.json (copied to the toolkit root by make_toolkit.py; read by the toolkit exes and tools/ota_oneclick). Change numbers only here, with a dated reason in _history. Derivation: doc/2026-11-04_OTA空间红线_GR与CAT1大小管控.md",
+  "cat1_fs_bytes": 524288,
+  "cat1_resident_max": 98304,
+  "ota_reserve": 16384,
+  "ota_growth_margin": 16384,
+  "gr_signed_red": 393216,
+  "gr_signed_yellow": 376832,
+  "cat1_luadb_red": 507904,
+  "cat1_luadb_yellow": 499712,
+  "cat1_sota_red": 262144,
+  "cat1_sota_yellow": 245760,
+  "growth_yellow": 4096,
+  "_history": [
+    "2026-11-04 initial: GR 1.5.10 signed 372968, LuaDB 496238, sota 188072; precheck free 450560 (used 18 blocks)",
+    "2026-11-04 ota_state_yellow 4096: OTA state record grows ~170 B per release (retries[manifest] never removed); warn above 4 KiB"
+  ],
+  "ota_state_yellow": 4096
+}

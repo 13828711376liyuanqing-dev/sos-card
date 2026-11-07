@@ -1,0 +1,138 @@
+{
+  "svn_root": "D:/SVN",
+  "project_root": "D:/CODEX/sos-card",
+  "archive_dir": "D:/CODEX/_archive",
+  "global_excludes": [
+    "*.uvguix*",
+    "*.before-*",
+    "JLinkLog.txt",
+    "JLinkSettings.ini",
+    "*.log",
+    "Thumbs.db",
+    "~$*",
+    "*.bak"
+  ],
+  "areas": [
+    {
+      "name": "gr_src",
+      "svn": "ble_app_uart_c/Src",
+      "prj": "ble_app_uart_c/Src",
+      "mode": "two-way"
+    },
+    {
+      "name": "gr_keil",
+      "svn": "ble_app_uart_c/Keil_6",
+      "prj": "ble_app_uart_c/Keil_6",
+      "mode": "two-way",
+      "exclude": [
+        "Objects",
+        "Listings",
+        "out",
+        "out--",
+        "build"
+      ]
+    },
+    {
+      "name": "gr_logo",
+      "svn": "ble_app_uart_c/Logo",
+      "prj": "ble_app_uart_c/Logo",
+      "mode": "two-way"
+    },
+    {
+      "name": "gr_gcc",
+      "svn": "ble_app_uart_c/GCC",
+      "prj": "ble_app_uart_c/GCC",
+      "mode": "report-only",
+      "exclude": [
+        "Objects",
+        "Listings",
+        "out",
+        "out--",
+        "build"
+      ]
+    },
+    {
+      "name": "sdk",
+      "svn": "SDK",
+      "prj": "SDK",
+      "mode": "two-way"
+    },
+    {
+      "name": "productdoc",
+      "svn": "ProductDoc",
+      "prj": "ProductDoc",
+      "mode": "two-way"
+    },
+    {
+      "name": "cat1",
+      "svn": "Air780EGH",
+      "prj": "Air780EGH",
+      "mode": "two-way",
+      "exclude": [
+        "_*"
+      ]
+    }
+  ],
+  "ota_guard": {
+    "_comment": "SAM | 2026-11-02 +08:00 | CAT1 OTA rules (doc/2026-11-02_CAT1代码交接清单_同事改代码与OTA.md). protected = only we change; vendor_libs = Luatools libraries used as-is.",
+    "cat1_area": "cat1",
+    "protected": [
+      "ota_*.lua",
+      "business_*.lua",
+      "update.lua",
+      "dfu_transfer.lua",
+      "network_watchdog.lua",
+      "mqtts_sender.lua",
+      "netdrv_4g.lua",
+      "timer_app.lua",
+      "tts.lua",
+      "audio_drv.lua",
+      "antenna_test.lua"
+    ],
+    "vendor_libs": [
+      "exaudio.lua",
+      "exgnss.lua",
+      "exsip.lua",
+      "lbsLoc2.lua",
+      "libfota2.lua",
+      "httpplus.lua"
+    ],
+    "builtin_modules": [
+      "sys",
+      "sysplus",
+      "air1103",
+      "exsipclient",
+      "exsipproto"
+    ],
+    "reserved_commands": [
+      "OTA_TRIAL",
+      "OTA_FS",
+      "OTA_PRUNE",
+      "FOTA_STATUS",
+      "FOTA_PROBE",
+      "OTA_GR",
+      "ATREBOOT",
+      "HELP"
+    ],
+    "fs_log_max_bytes": 16384,
+    "luadb_last_bytes": 482276,
+    "luadb_headroom_bytes": 42012,
+    "lupa_path": "D:/CODEX/sos-card/logs/cat1_antenna_20261010/python_deps",
+    "write_ok_tokens": [
+      "/ram/",
+      "/sd/",
+      "LOG_FILE",
+      "BLE_FILE",
+      "LOG_DIR",
+      "BLE_DIR"
+    ],
+    "write_ok_files": [
+      "audio_test.lua"
+    ],
+    "_write_ok": "LOG_*/BLE_* are /log,/ble (skipped by the snapshot); audio_test.lua writes only CFG.paths = /ram,/sd. A new path in these files is still caught by the REF comparison of R1/R5 only if the line is new.",
+    "gr_version_header": "ble_app_uart_c/Src/config/yp001_fw_version.h",
+    "secret_scan_skip": [
+      "SDK/external"
+    ]
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "scan_policy": "yp001-inputs-v1",
+  "baseline_id": "YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R2",
+  "candidate_id": "UNASSIGNED_NEXT_UNIQUE_VERSION_AND_BUILD",
+  "baseline_manifest": {
+    "path": "firmware_releases/baselines/YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R2/manifest.json",
+    "sha256": "d24e1a6de9428c45f8b78f199e3b6dde4538803c4e33660fcf1b2d21139c0fba"
+  },
+  "mappings": [
+    {
+      "component": "gr",
+      "baseline": "firmware_releases/baselines/YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R2/source/gr",
+      "candidate": "ble_app_uart_c"
+    },
+    {
+      "component": "cat1",
+      "baseline": "firmware_releases/baselines/YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R2/source/cat1",
+      "candidate": "Air780EGH"
+    },
+    {
+      "component": "sdk",
+      "baseline": "firmware_releases/baselines/YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R2/source/sdk",
+      "candidate": "SDK"
+    }
+  ],
+  "baseline_files": {},
+  "candidate_files": {},
+  "baseline_sha256": null,
+  "candidate_sha256": null,
+  "changes": [],
+  "build_evidence": {
+    "source_sha256": null,
+    "gr_hex_sha256": null,
+    "reviewer": null,
+    "reason": "PENDING_REAL_NEW_BUILD",
+    "evidence": []
+  },
+  "attestation": {
+    "source_sha256": null,
+    "reviewer": null,
+    "reason": "PENDING_EXACT_REVIEW_AND_BASELINE_CAPABILITY_EVIDENCE",
+    "evidence": []
+  },
+  "note": "Intentionally not executable: b18 reconstructed input alignment pending, new GR fix not built. Never fill placeholders as approval."
+}

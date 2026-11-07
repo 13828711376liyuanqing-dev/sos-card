@@ -1,0 +1,59 @@
+{
+  "permissions": {
+    "allow": [],
+    "deny": [
+      "Bash(git)",
+      "Bash(git *)",
+      "Bash(git.exe *)",
+      "Bash(gh *)",
+      "Bash(gh.exe *)",
+      "Bash(gitk *)",
+      "Bash(TortoiseGitProc *)",
+      "Bash(TortoiseGitProc.exe *)",
+      "PowerShell(git *)",
+      "PowerShell(git.exe *)",
+      "PowerShell(gh *)",
+      "Read(/.git/**)",
+      "Edit(/.git/**)",
+      "Read(**/.git/**)",
+      "Edit(**/.git/**)",
+      "Read(//d/CODEX/**/.git/**)",
+      "Edit(//d/CODEX/**/.git/**)",
+      "Bash(svn)",
+      "Bash(svn *)",
+      "Bash(svn.exe *)",
+      "Bash(svnadmin *)",
+      "Bash(svnlook *)",
+      "Bash(svnsync *)",
+      "Bash(svnserve *)",
+      "Bash(TortoiseProc *)",
+      "Bash(TortoiseProc.exe *)",
+      "PowerShell(svn *)",
+      "PowerShell(svn.exe *)",
+      "Read(//d/SVN/**/.svn/**)",
+      "Edit(//d/SVN/**/.svn/**)",
+      "Read(**/.svn/**)",
+      "Edit(**/.svn/**)",
+      "Read(//c/Users/SamLi/AppData/Roaming/Subversion/**)",
+      "Edit(//c/Users/SamLi/AppData/Roaming/Subversion/**)",
+      "Read(~/AppData/Roaming/Subversion/**)",
+      "Edit(~/AppData/Roaming/Subversion/**)"
+    ]
+  },
+  "includeGitInstructions": false,
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Read|Edit|Write|Grep|Glob|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/block_svn.py\"",
+            "timeout": 30,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ]
+  }
+}

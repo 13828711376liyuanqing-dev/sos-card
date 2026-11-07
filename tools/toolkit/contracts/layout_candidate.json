@@ -1,0 +1,71 @@
+{
+  "approved": false,
+  "status": "candidate_do_not_flash",
+  "base": 2097152,
+  "capacity": 1048576,
+  "sector": 4096,
+  "regions": [
+    {
+      "name": "sca",
+      "start": 2097152,
+      "size": 8192
+    },
+    {
+      "name": "a",
+      "start": 2105344,
+      "size": 442368
+    },
+    {
+      "name": "preserved",
+      "start": 2547712,
+      "size": 73728,
+      "ota_writable": false
+    },
+    {
+      "name": "b",
+      "start": 2621440,
+      "size": 442368
+    },
+    {
+      "name": "boot",
+      "start": 3063808,
+      "size": 40960
+    },
+    {
+      "name": "scratch",
+      "start": 3104768,
+      "size": 4096
+    },
+    {
+      "name": "journal0",
+      "start": 3108864,
+      "size": 4096
+    },
+    {
+      "name": "journal1",
+      "start": 3112960,
+      "size": 4096
+    },
+    {
+      "name": "coordinator0",
+      "start": 3117056,
+      "size": 4096
+    },
+    {
+      "name": "coordinator1",
+      "start": 3121152,
+      "size": 4096
+    },
+    {
+      "name": "unallocated",
+      "start": 3125248,
+      "size": 12288
+    },
+    {
+      "name": "nvds",
+      "start": 3137536,
+      "size": 8192
+    }
+  ],
+  "note": "SAM | 2026-10-23 +08:00 | Selected undeployed candidate; preserve unknown bytes. Deployment approval remains false."
+}

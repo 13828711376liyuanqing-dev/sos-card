@@ -14,24 +14,25 @@
 #include "board_SK.h"
 #include "gr55xx_hal_adc.h"
 #include "gr55xx_ll_adc.h"
+#include "yp001_board_config.h"
 
 
-#define I2C_SDA_GPIO_TYPE APP_IO_TYPE_GPIOB
-#define I2C_SDA_GPIO_PIN APP_IO_PIN_12
-#define I2C_SDA_GPIO_MUX APP_IO_MUX_5
+#define I2C_SDA_GPIO_TYPE YP001_CHARGER_I2C_TYPE
+#define I2C_SDA_GPIO_PIN YP001_CHARGER_SDA_PIN
+#define I2C_SDA_GPIO_MUX YP001_CHARGER_SDA_MUX
 
-#define I2C_SCL_GPIO_TYPE APP_IO_TYPE_AON
-#define I2C_SCL_GPIO_PIN APP_IO_PIN_4
-#define I2C_SCL_GPIO_MUX APP_IO_MUX_2
+#define I2C_SCL_GPIO_TYPE YP001_CHARGER_I2C_TYPE
+#define I2C_SCL_GPIO_PIN YP001_CHARGER_SCL_PIN
+#define I2C_SCL_GPIO_MUX YP001_CHARGER_SCL_MUX
 
-#define I2C_ID APP_I2C_ID_0
+#define I2C_ID APP_I2C_ID_4
 
 // 电池电压检测引脚定义
-#define ADC_BAT_TYPE APP_IO_TYPE_MSIO
-#define ADC_BAT_PIN  APP_IO_PIN_1    // MSIO1 (电池分压点)
+#define ADC_BAT_TYPE YP001_BATTERY_ADC_TYPE
+#define ADC_BAT_PIN  YP001_BATTERY_ADC_PIN
 #define ADC_BAT_MUX  APP_IO_MUX_7
-#define EN_BATM_TYPE APP_IO_TYPE_MSIO
-#define EN_BATM_PIN  APP_IO_PIN_5    // MSIO5
+#define EN_BATM_TYPE YP001_BATTERY_SWITCH_TYPE
+#define EN_BATM_PIN  YP001_BATTERY_SWITCH_PIN
 
 // 电池分压比: 33K / (100K + 33K) = 33/133 ≈ 0.248
 #define BAT_DIVIDER_RATIO  0.248f
@@ -73,7 +74,7 @@ static app_i2c_params_t charge_ic_params = {
     },
 };
 
-#define CHARGE_IC_ADDR 0x6B
+#define CHARGE_IC_ADDR YP001_CHARGER_ADDRESS
 #define CHARGE_IC_ID 0x3F
 
 static uint16_t i2c_write(uint8_t *data, uint8_t len)
@@ -107,7 +108,7 @@ static volatile uint8_t adc_conv_done = 0;
 
 static void app_io_event_handler(app_io_evt_t *p_evt)
 {
-    if (p_evt->pin == APP_IO_PIN_5)
+    if (p_evt->pin == YP001_CHARGER_INT_PIN)
     {
         charge_ic_int = 1;
     }
@@ -115,7 +116,7 @@ static void app_io_event_handler(app_io_evt_t *p_evt)
 
 const app_gpiote_param_t gpiote_param_charge_ic[] =
 {
-    {APP_IO_TYPE_AON, APP_IO_PIN_5, APP_IO_MODE_IT_FALLING, APP_IO_PULLDOWN, app_io_event_handler},
+    {YP001_CHARGER_INT_TYPE, YP001_CHARGER_INT_PIN, APP_IO_MODE_IT_FALLING, APP_IO_PULLUP, app_io_event_handler},
 };
 
 // 读取电池电压 (mV) - 使用HAL层直接控制
@@ -126,7 +127,7 @@ uint16_t charge_ic_read_battery_voltage(void)
     double vbat = 0;
 
     // 开启MOS进行电池检测 (EN_BATM=LOW)
-    app_io_write_pin(EN_BATM_TYPE, EN_BATM_PIN, APP_IO_PIN_RESET);
+    app_io_write_pin(EN_BATM_TYPE, EN_BATM_PIN, APP_IO_PIN_SET);
     delay_ms(50);
 
     // 初始化MSIO1为模拟输入
@@ -160,7 +161,7 @@ uint16_t charge_ic_read_battery_voltage(void)
     hal_adc_deinit(&adc_bat_handle);
 
     // 关闭电池检测MOS
-    app_io_write_pin(EN_BATM_TYPE, EN_BATM_PIN, APP_IO_PIN_SET);
+    app_io_write_pin(EN_BATM_TYPE, EN_BATM_PIN, APP_IO_PIN_RESET);
 
     // 计算电池电压: Vbat = (adc_raw / 4095) * 1.6V / 分压比
     double vbat_adc = ((double)adc_raw / 4095.0) * 1.6;
@@ -180,10 +181,10 @@ uint8_t charge_ic_init(void)
     // 先把使能脚拉高  GPIO20_NQON
     io_init.pull = APP_IO_NOPULL;
     io_init.mode = APP_IO_MODE_OUTPUT;
-    io_init.pin = APP_IO_PIN_4;
+    io_init.pin = YP001_CHARGER_NQON_PIN;
     io_init.mux = APP_IO_MUX;
-    ret = app_io_init(APP_IO_TYPE_GPIOB, &io_init);
-    app_io_write_pin(APP_IO_TYPE_GPIOB, APP_IO_PIN_4, APP_IO_PIN_SET);
+    ret = app_io_init(YP001_CHARGER_NQON_TYPE, &io_init);
+    app_io_write_pin(YP001_CHARGER_NQON_TYPE, YP001_CHARGER_NQON_PIN, YP001_CHARGER_NQON_ACTIVE);
 
     // 初始化EN_BATM引脚 (默认关闭电池检测MOS)
     io_init.pull = APP_IO_NOPULL;

@@ -1,7 +1,7 @@
 {
   "schema": "YP001_LOCAL_BASELINE_REGISTRY_V1",
   "control_branch": "codex/version-protection-20261107",
-  "scope": "Local control history and byte anchors; HEAD is not complete firmware source or build identity.",
+  "scope": "Frozen baseline metadata and byte anchors; the source-candidate Git checkpoint is not the physical b18 build identity.",
   "baselines": [
     {
       "baseline_id": "YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R2",

@@ -1,4 +1,4 @@
-
+﻿
 //
 // Model: fsm.qm
 // File:  ${../../user::AOs.h}
@@ -55,7 +55,15 @@
 //
 // 自定义宏
 #define MAX_BEACON_PER_SCAN  5
-#define CC_CALL
+//#define CC_CALL
+
+#define FEATURE_USE_CAT1_SVC
+//#define CAT1_CONFIG_TEST
+
+#define IMEI_BUF_LEN 15
+#define IMSI_BUF_LEN 15
+
+
 typedef struct {
     uint16_t major;
     uint16_t minor;
@@ -78,15 +86,18 @@ typedef struct UartRxEvt {
 
 // 参数配置结构体
 typedef struct {
-    // 顶层字段
+
     char MsgType[32];
     int  CmdType;
     int  Time;
 
     // ParaData 字段
     int  PeriodicPara;
+	int  BleScanCntPara;
     int  BleScanInterval;
     int  BleScanPeriod;
+	int  AutoOta;
+	int  CallType;
     int  RestTime;
     int  PowerThreshold;
     int  SleepTimeout;
@@ -95,21 +106,31 @@ typedef struct {
     int  SosTime;
     int  BeaconUploadMethod;
     char BeaconUploadAddr[128];
-    char MqttAddr[128];
+    char MqttAddr[64];
     char MqttUser[64];
     char MqttPasswd[64];
     int  MqttClientKeepAliveInterval;
+	char VoipAddr[128];
+    char VoipUser[64];
+    char VoipPasswd[64];	
 } ParaConfig_t;
 
 
+typedef struct {
+
+
+    int  CmdType;
+    char call_out[20];
+	char call_in[5][20];
+} ParaBindMsg_t;
 
 extern ParaConfig_t g_config;
+extern ParaBindMsg_t g_bind_msg;
 
-// 串口发送完成事件（纯通知，可用基础QEvt）
-// 串口错误事件（纯通知）
-//
 
-// app.h 或 clock.h 中的事件结构定义
+// 串口发送完成事件（纯通知，可用基础QEvt�?// 串口错误事件（纯通知�?//
+
+// app.h �?clock.h 中的事件结构定义
 
 
 
@@ -117,7 +138,7 @@ extern ParaConfig_t g_config;
 #define JSON_POOL_SIZE ((uint8_t)3U)
 
 
-#define JSON_POOL_BUF_SIZE ((uint16_t)1024U)
+#define JSON_POOL_BUF_SIZE ((uint16_t)2048U)
 
 
 extern uint8_t json_pool_index;
@@ -141,6 +162,15 @@ typedef struct {
     uint16_t  data_len;
 } MqttsJsonEvt;
 
+typedef enum{
+	LOCATE_TYPE_NONE,
+	LOCATE_TYPE_ONLINE,
+	LOCATE_TYPE_OFFLINE,
+	LOCATE_TYPE_FIND_DEVICE,
+	LOCATE_TYPE_SOS,
+	LOCATE_TYPE_PERIOD  // ONLY BT
+}locasvc_locate_type;
+
 
 typedef struct LocaSvr {
 // protected:
@@ -154,10 +184,13 @@ typedef struct LocaSvr {
     //扫描结果缓存数组
     BeaconScanResult BEACONData;
     uint8_t LBSData;
-
+	uint8_t WIFIData;
+	char *  scan_result;
 // public:
     uint8_t GPSData;
     char *  jsonBuf;
+	locasvc_locate_type locate_type;
+	
 } LocaSvr;
 
 extern LocaSvr LocaSvr_inst;
@@ -169,6 +202,7 @@ QState LocaSvr_BeaconProcess(LocaSvr * const me, QEvt const * const e);
 QState LocaSvr_LBS(LocaSvr * const me, QEvt const * const e);
 QState LocaSvr_GPS(LocaSvr * const me, QEvt const * const e);
 QState LocaSvr_Idle(LocaSvr * const me, QEvt const * const e);
+QState LocaSvr_WIFI(LocaSvr * const me, QEvt const * const e);
 
 #if((TK_Board_1_1_UART_DBG == 1)||(TK_Board_PAD_UART_DBG == 1))
 QState LocaSvr_SOSKeyPressed(LocaSvr * const me, QEvt const * const e);
@@ -178,9 +212,11 @@ QState LocaSvr_SOSKeyPressed(LocaSvr * const me, QEvt const * const e);
 QState LocaSvr_SOSKeyRPressed(LocaSvr * const me, QEvt const * const e);
 #endif // ((TK_Board_1_1_UART_DBG == 1)||(TK_Board_PAD_UART_DBG == 1))
 QState LocaSvr_SOS_KEY_OK(LocaSvr * const me, QEvt const * const e);
+/* SAM | 2026-11-06 +08:00 | Kept as in our verified cat1svr.c (no argument) until the SOS merge with the colleague is decided. */
+void start_sos_process(void);
 
 
-#define CAT1_RX_BUF_LEN ((uint16_t)1024U)
+#define CAT1_RX_BUF_LEN ((uint16_t)2048U)
 
 
 #define CAT1_QUEUE_DEPTH ((uint8_t)10U)
@@ -262,6 +298,12 @@ typedef struct {
 
 // private:
     QTimeEvt timeEvt;
+
+	char IMEI[IMEI_BUF_LEN+1];
+	char IMSI[IMSI_BUF_LEN+1];
+	uint8_t rssi_bar;
+	uint8_t cat1_register;
+
 } Cat1Svr;
 
 // public:

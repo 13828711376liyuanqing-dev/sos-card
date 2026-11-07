@@ -44,7 +44,7 @@
 #include "app.h"
 #include "board_SK.h"
 
-static volatile bool g_dma_done = false;
+/* DMA state is private to sensor.c. */
 static uint8_t accel_buf[6];
 
 
@@ -93,6 +93,7 @@ void DA221_ctor(DA221 * const me,
 // private:
 void DA221_io_int_init(void);
 void DA221_start_dma_collect(DA221 * const me);
+bool gsensor_is_stationary(void);
 
 #if 0
 void DA221_print_all_data(void);

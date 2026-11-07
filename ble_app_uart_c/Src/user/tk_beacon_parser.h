@@ -72,14 +72,17 @@ static inline bool tk_beacon_parse(const uint8_t *p_data, uint8_t length, tk_bea
         return false;
     }
 
-    uint8_t offset = 0;
-    bool found_flags = false;
+    /* SAM | 2026-10-04 11:07 +08:00 | Flags are optional for Beacon
+     * identification; initialize outputs when the field is absent. */
+    memset(p_out, 0, sizeof(*p_out));
+    uint16_t offset = 0;
     bool found_mfg = false;
 
     while (offset + 1 < length) {
         uint8_t ad_len = p_data[offset];
         if (ad_len == 0) break;
-        if (offset + ad_len + 1 > length) break;
+        /* SAM | 2026-10-04 11:07 +08:00 | Reject truncated AD fields. */
+        if (offset + ad_len + 1 > length) return false;
 
         uint8_t ad_type = p_data[offset + 1];
         const uint8_t *ad_data = p_data + offset + 2;
@@ -87,9 +90,12 @@ static inline bool tk_beacon_parse(const uint8_t *p_data, uint8_t length, tk_bea
 
         if (ad_type == GAP_ADTYPE_FLAGS && data_len >= 1) {
             p_out->flags = ad_data[0];
-            found_flags = true;
         }
-        else if (ad_type == GAP_ADTYPE_MANUFACTURER_SPECIFIC && data_len >= 25) {
+        /* SAM | 2026-10-04 11:07 +08:00 | Require Apple/iBeacon header;
+         * arbitrary manufacturer packets must not become location records. */
+        else if (ad_type == GAP_ADTYPE_MANUFACTURER_SPECIFIC && data_len >= 25 &&
+                 ad_data[0] == 0x4C && ad_data[1] == 0x00 &&
+                 ad_data[2] == 0x02 && ad_data[3] == 0x15) {
             memcpy(p_out->apple_pre, ad_data, 4);
             memcpy(p_out->uuid, ad_data + 4, 16);
             p_out->major = (uint16_t)((ad_data[20] << 8) | ad_data[21]);
@@ -101,7 +107,7 @@ static inline bool tk_beacon_parse(const uint8_t *p_data, uint8_t length, tk_bea
         offset += (ad_len + 1);
     }
 
-    return found_flags && found_mfg;
+    return found_mfg;
 }
 
 /**

@@ -83,5 +83,10 @@ uint32_t BSP_random(void);          // pseudo-random generator
 void BSP_ledOn(void);
 void BSP_ledOff(void);
 
+uint32_t BSP_tick_ms(void);
+void yp_motion_poll(uint32_t now_ms);
+bool yp_motion_moving(void);   /* true = active (recent motion) */
+bool yp_motion_known(void);    /* judgement has been initialized */
+
 #endif // BSP_H_
 

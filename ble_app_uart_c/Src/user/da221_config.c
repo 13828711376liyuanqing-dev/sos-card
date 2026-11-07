@@ -1,4 +1,4 @@
-
+﻿
 //
 // Model: sensor.qm
 // File:  ${../../user::da221_config.c}
@@ -107,6 +107,7 @@ const I2cRegCfg_t da221_full_speed_config_table[] = {
 const uint8_t da221_full_speed_config_table_size = sizeof(da221_full_speed_config_table) / sizeof(I2cRegCfg_t);
 
 // 低功耗运动触发模式配置表（电平检测版：1秒触发，8秒静止释放）
+#if 0
 const I2cRegCfg_t da221_low_power_motion_config_table[] = {
     // ========== 1. 芯片复位（必须第一个执行） ==========
     {0x00, 0x24, true,  2},   // CONFIG 软件复位，关键配置
@@ -140,5 +141,30 @@ const I2cRegCfg_t da221_low_power_motion_config_table[] = {
     // ========== 6. 芯片ID校验（配置完成后读取） ==========
     {0x01, 0x00, true, 1},    // CHIPID寄存器地址，仅发送reg，用于读ID校验硬件，关键配置
 };
+#else
+
+const I2cRegCfg_t da221_low_power_motion_config_table[] = {
+    // ========== 1. 芯片复位（必须第一个执行） ==========
+    // ========== 2. 基础硬件参数配置 ==========
+    {0x0F, 0x00, true,  2},   // RANGE 量程±2g，关键配置
+    {0x10, 0x07, true,  2},   // ODR 采样率125Hz（最高），关键配置
+    {0x11, 0x34, true,  2},   // MODE 正常模式，关闭自动休眠，全带宽，关键配置
+    {0x7f, 0x83, true,  2},   // SWAP_POLARITY 无轴交换、无极性翻转，适配标准安装，关键配置
+
+    // ========== 3. 全局中断配置 ==========
+    {0x7f, 0x69, true,  2},   // INT_SET2 新数据中断使能，每帧数据输出触发中断，关键配置
+    {0x7f, 0xbd, true,  2},   // INT_MAP2 新数据中断映射到INT引脚，关键配置
+    {0x8c, 0x00, true,  2},   // INT_LATCH 中断无锁存，软件读取后自动清除，适配高频数据读取，关键配置
+    {0x16, 0x87, true,  2},   // INT_CONFIG：推挽输出、低电平有效（方案A，无外部上拉）
+    {0x19, 0x04, true,  2},   // INT_MAP1 运动中断映射到INT引脚，关键配置
+    {0x20, 0x00, true,  2},   // INT_CONFIG：推挽输出、高电平有效（方案A，无外部上拉）
+    {0x21, 0x03, true, 2},// INT_LATCH 中断无锁存1S，软件读取后自动清除，适配高频数据读取，关键配置
+	//{0x21, 0x06, true, 2},// INT_LATCH 中断无锁存8S，软件读取后自动清除，适配高频数据读取，关键配置
+	// ========== 4. 运动检测配置（辅助，不影响持续采样） ==========
+    {0x27, 0x00, true,  2},   // ACTIVE_DUR 运动持续计数4，快速响应，关键配置
+    {0x28, 0x08, true,  2},   // ACTIVE_THS 运动触发阈值，适配高频采样，关键配置
+    //{0x28, 0x20, true,  2},   // ACTIVE_THS 运动触发阈值，适配高频采样，关键配置
+};
+#endif
 // 自动计算表长度
 const uint8_t da221_low_power_motion_config_table_size = sizeof(da221_low_power_motion_config_table) / sizeof(I2cRegCfg_t);

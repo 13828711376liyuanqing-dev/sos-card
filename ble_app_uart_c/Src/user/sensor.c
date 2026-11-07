@@ -47,11 +47,19 @@
 
 
 DA221 DA221_inst;
+static volatile bool g_dma_done;
+static volatile bool s_collect_pending;
 
 
 void DA221_i2c_evt_handler(app_i2c_evt_t * p_evt)
 {
 
+        if (!p_evt) return;
+        if (s_collect_pending && (p_evt->type == APP_I2C_EVT_RX_DATA ||
+                                  p_evt->type == APP_I2C_EVT_ERROR)) {
+            s_collect_pending = false;
+            g_dma_done = true;
+        }
         const char *type_str = "UNKNOWN";
         switch (p_evt->type) {
             case APP_I2C_EVT_TX_CPLT: type_str = "TX_CPLT"; break;
@@ -75,9 +83,11 @@ void DA221_i2c_evt_handler(app_i2c_evt_t * p_evt)
 
 void DA221_i2c_dma_init(DA221 * const me) {
     uint16_t ret;
+    g_dma_done = false;
     ret = app_i2c_init(me->cfg.i2c_param, DA221_i2c_evt_handler);
     if (ret != APP_DRV_SUCCESS) {
         printf("I2C init error: %d", ret);
+        return;
     }else{
         printf("I2C init ok: %d", ret);
     }
@@ -86,6 +96,7 @@ void DA221_i2c_dma_init(DA221 * const me) {
         printf("I2C DMA init error: %d", ret);
     }else{
         printf("I2C DMA init ok: %d", ret);
+        g_dma_done = true;
     }
 }
 
@@ -108,7 +119,52 @@ uint16_t DA221_i2c_read(DA221 * const me,
             buffer, len);
 }
 
+	
+volatile uint32_t g_last_motion_tick = 0;
+volatile uint8_t  g_motion_cnt = 0;
 
+#define MOTION_CNT_THR     1        // ĞèÒªÁ¬ĞøN´ÎÖĞ¶Ï²Å½øÈëÔË¶¯
+#define CNT_RESET_WINDOW   1500     // Á½´ÎÖĞ¶Ï¼ä¸ô³¬¹ıÕâ¸ö£¬¼ÆÊıÇåÁã£¬²»ËãÁ¬Ğø
+#define STABLE_DELAY_MS    2000     // ¡¾ÖØµã¡¿ÔË¶¯Ì¬ÏÂ£¬Á¬ĞøÕâÃ´¾ÃÎŞÖĞ¶Ï£¬²ÅÅĞ¶¨¾²Ö¹
+
+bool gsensor_is_stationary(void)
+{
+    uint32_t now = BSP_tick_ms();
+    uint32_t last = g_last_motion_tick;
+    uint32_t delta = now - last;
+	
+	//APP_LOG_ERROR("g_motion_cnt =%d delta=%d",g_motion_cnt,delta);
+
+    if(g_motion_cnt >= MOTION_CNT_THR)
+    {
+    
+        // ÒÑ¾­½øÈëÔË¶¯£º±ØĞëÁ¬Ğø STABLE_DELAY_MS ÎŞÖĞ¶Ï£¬²ÅËã¾²Ö¹
+        if(delta >= STABLE_DELAY_MS)
+        {
+            g_motion_cnt = 0;
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+    else
+    {
+        // »¹Ã»ÔÜ¹»ÔË¶¯´ÎÊı£¬±£³Ö¾²Ö¹£»Ì«¾ÃÃ»ÓĞÁ¬ĞøÂö³å£¬Çå¿Õ¼ÆÊı
+        if(delta > CNT_RESET_WINDOW)
+        {
+            g_motion_cnt = 0;
+        }
+        return true;
+    }
+}
+
+
+
+
+/* SAM | 2026-10-16 10:00 +08:00 | Preserve GS_INT test evidence without printing from the IRQ. */
+extern void yp001_sleep_test_gsensor_irq(void);
 void DA221_gpio_int_callback(app_io_evt_t * p_evt) {
     //if(p_evt->pin == APP_IO_PIN_7){
     //        static QEvt const motion_evt = QEVT_INITIALIZER(DA221_MOTION_INT_SIG);
@@ -117,11 +173,35 @@ void DA221_gpio_int_callback(app_io_evt_t * p_evt) {
     if (p_evt == NULL) {
         return;
     }
+    if (p_evt->type == YP001_SENSOR_INT_TYPE && p_evt->pin == YP001_SENSOR_INT_PIN)
+        yp001_sleep_test_gsensor_irq();
     app_io_pin_state_t pin_state = app_io_read_pin(p_evt->type, p_evt->pin);
 
+	//APP_LOG_ERROR("pin_state =%d",pin_state);
+	
     if (pin_state == APP_IO_PIN_SET) {
-        QTimeEvt_ctorX(&DA221_inst.sample_clk, (QActive*)&DA221_inst, DA221_MOTION_INT_SIG, 0U);
-        QTimeEvt_armX(&DA221_inst.sample_clk, BSP_TICKS_PER_SEC/5U, BSP_TICKS_PER_SEC/5U);
+		#if 1
+	    uint32_t now = BSP_tick_ms();
+		uint32_t delta = now - g_last_motion_tick;
+		// ÅĞ¶Ï£ºÕâ´ÎÖĞ¶ÏºÍÉÏÒ»´Î¼ä¸ôÔÚ´°¿ÚÄÚ ¡ú ÊôÓÚÁ¬ĞøµÄÔË¶¯Âö³å£¬¼ÆÊı++
+	    if (delta < CNT_RESET_WINDOW)
+	    {
+	    	if(g_motion_cnt < MOTION_CNT_THR)
+	    	{
+	        	g_motion_cnt ++;
+	    	}
+	    }
+	    else
+	    {
+	        // ¼ä¸ôÌ«¾Ã£¬²»ÊÇÁ¬ĞøÔË¶¯£¬ÖØĞÂ¿ªÊ¼¼ÆÊı
+	        g_motion_cnt = 1;
+	    }
+	    g_last_motion_tick = now;
+		//APP_LOG_ERROR("g_last_motion_tick =%d",g_last_motion_tick);
+		#endif
+        if (QTimeEvt_currCtr(&DA221_inst.sample_clk) == 0U) {
+            QTimeEvt_armX(&DA221_inst.sample_clk, BSP_TICKS_PER_SEC/5U, BSP_TICKS_PER_SEC/5U);
+        }
     } else {
         (void)QTimeEvt_disarm(&DA221_inst.sample_clk);
     }
@@ -132,8 +212,9 @@ void DA221_ctor(DA221 * const me,
     Da221WorkMode mode)
 {
 
-        // QPæ´»åŠ¨å¯¹è±¡åŸºç±»åˆå§‹åŒ–ï¼Œç»‘å®šé¡¶å±‚åˆå§‹çŠ¶æ€
+        // QPæ´»åŠ¨å¯¹è±¡åŸºç±»åˆå§‹åŒ–ï¼Œç»‘å®šé¡¶å±‚åˆå§‹çŠ¶æ€?
         QActive_ctor(&me->super, Q_STATE_CAST(&DA221_initial));
+        QTimeEvt_ctorX(&me->sample_clk, &me->super, DA221_MOTION_INT_SIG, 0U);
 
         me->cfg.pwr_cfg  = da221_pwr_default_cfg;
         // ç»‘å®šæœ¬å®ä¾‹ç§æœ‰I2Cå‚æ•°ï¼Œä¸å†ä½¿ç”¨å…¨å±€i2c_params
@@ -151,7 +232,7 @@ void DA221_ctor(DA221 * const me,
             me->cfg.table_len = da221_low_power_motion_config_table_size;
         }
 
-        // æ¸…ç©ºé…ç½®è¿è¡Œä¸Šä¸‹æ–‡
+        // æ¸…ç©ºé…ç½®è¿è¡Œä¸Šä¸‹æ–?
         me->cfg.step_index = 0U;
         me->cfg.retry_count = 0U;
         me->cfg.i2c_tmr_id = 0U;
@@ -172,8 +253,8 @@ void DA221_ctor(DA221 * const me,
 
 void DA221_io_int_init(void) {
         app_gpiote_param_t param[1] ={
-             APP_IO_TYPE_AON,
-             APP_IO_PIN_7,
+             YP001_SENSOR_INT_TYPE,
+             YP001_SENSOR_INT_PIN,
              APP_IO_MODE_IT_BOTH_EDGE,
              APP_IO_NOPULL,
              DA221_gpio_int_callback,
@@ -185,11 +266,12 @@ void DA221_io_int_init(void) {
 void DA221_start_dma_collect(DA221 * const me) {
 
         if (g_dma_done == false) {
-            // ä¸Šä¸€æ¬¡ä¼ è¾“æœªå®Œæˆï¼Œè·³è¿‡æœ¬æ¬¡
+            // ä¸Šä¸€æ¬¡ä¼ è¾“æœªå®Œæˆï¼Œè·³è¿‡æœ¬æ¬?
             return;
         }
 
         g_dma_done = false;
+        s_collect_pending = true;
 
         uint16_t ret = app_i2c_dma_mem_read_async(
             me->cfg.i2c_param->id,
@@ -202,6 +284,7 @@ void DA221_start_dma_collect(DA221 * const me) {
 
         if (ret != APP_DRV_SUCCESS) {
             printf("DMA read start error: %d\r\n", ret);
+            s_collect_pending = false;
             g_dma_done = true;
         }
 
@@ -233,7 +316,7 @@ void DA221_print_all_data(void) {
         uint8_t z_trig = (act_sta & 0x01);
         uint8_t sign   = (act_sta >> 7) & 0x01;
 
-        // **ä¸€è¡Œ printf è¾“å‡ºæ‰€æœ‰æ•°æ®**
+        // **ä¸€è¡?printf è¾“å‡ºæ‰€æœ‰æ•°æ?*
         printf("DA221: X=%4d Y=%4d Z=%4d | active=%d new=%d | trig X=%d Y=%d Z=%d sign=%s\r\n",
                x, y, z,
                active_int, new_data_int,
@@ -253,19 +336,19 @@ void DA221_read_accel(DA221 * const me) {
         TK_DA221_ADDR,           // 7-bit ä»æœºåœ°å€
         0x02,                    // XYZ èµ·å§‹å¯„å­˜å™¨åœ°å€
         I2C_MEMADD_SIZE_8BIT,    // 8-bit å¯„å­˜å™¨åœ°å€
-        xyz_buf,                 // æ¥æ”¶ç¼“å†²åŒº
+        xyz_buf,                 // æ¥æ”¶ç¼“å†²åŒ?
         6,                       // è¯»å– 6 å­—èŠ‚
         100                      // è¶…æ—¶ 100ms
     );
 
     if (ret == APP_DRV_SUCCESS) {
-        // è§£æ xyz_buf[0]~xyz_buf[5] ä¸º X/Y/Z
-            /* è§£æ 12-bit æœ‰ç¬¦å·å€¼ (little-endian: ä½ 4 ä½åœ¨ LSB, é«˜ 8 ä½åœ¨ MSB) */
+        // è§£æ xyz_buf[0]~xyz_buf[5] ä¸?X/Y/Z
+            /* è§£æ 12-bit æœ‰ç¬¦å·å€?(little-endian: ä½?4 ä½åœ¨ LSB, é«?8 ä½åœ¨ MSB) */
         int16_t x = (int16_t)((xyz_buf[1] << 4) | (xyz_buf[0] >> 4));
         int16_t y = (int16_t)((xyz_buf[3] << 4) | (xyz_buf[2] >> 4));
         int16_t z = (int16_t)((xyz_buf[5] << 4) | (xyz_buf[4] >> 4));
 
-        /* 2's complement ç¬¦å·æ‰©å±• (12-bit â†’ 16-bit) */
+        /* 2's complement ç¬¦å·æ‰©å±• (12-bit â†?16-bit) */
         if (x > 2047) x -= 4096;
         if (y > 2047) y -= 4096;
         if (z > 2047) z -= 4096;
@@ -291,7 +374,7 @@ QState DA221_UNINIT(DA221 * const me, QEvt const * const e) {
         case Q_ENTRY_SIG: {
             printf("--> sensor UNINIT");
              // å…ˆåˆå§‹åŒ–ç”µæº
-             DA221_i2c_dma_init(me); // æ›¿æ¢ä¸ºæ­£ç¡®çš„I2Cåˆå§‹åŒ–å‡½æ•°
+             DA221_i2c_dma_init(me); // æ›¿æ¢ä¸ºæ­£ç¡®çš„I2Cåˆå§‹åŒ–å‡½æ•?
             // æ£€æµ‹ä¼ æ„Ÿå™¨I2Cåº”ç­”
             uint8_t chip_id = 0;
             uint16_t ret = app_i2c_mem_read_sync(

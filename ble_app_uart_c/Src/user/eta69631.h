@@ -22,40 +22,8 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-
-/* If app_io.h is not included, define necessary APP_IO_PIN_* macros here */
-#ifndef APP_IO_PIN_4
-#define APP_IO_PIN_4                 ((uint32_t)0x00000010U)  /**< Pin 4 selected */
-#endif
-
-#ifndef APP_IO_PIN_5
-#define APP_IO_PIN_5                 ((uint32_t)0x00000020U)  /**< Pin 5 selected */
-#endif
-
-#ifndef APP_IO_PIN_28
-#define APP_IO_PIN_28                ((uint32_t)0x10000000U)  /**< Pin 28 selected */
-#endif
-
-/* If app_io.h enum values are not available, define them */
-#ifndef APP_IO_PULLUP
-#define APP_IO_PULLUP                1  /**< Pull-up activation */
-#endif
-
-#ifndef APP_IO_MUX_0
-#define APP_IO_MUX_0                 0  /**< IO_MUX_GPIO */
-#endif
-
-#ifndef APP_IO_TYPE_GPIOB
-#define APP_IO_TYPE_GPIOB            1  /**< GPIOB type */
-#endif
-
-#ifndef APP_IO_TYPE_AON
-#define APP_IO_TYPE_AON              3  /**< AON GPIO type */
-#endif
-
-#ifndef APP_IO_MODE_IT_BOTH_EDGE
-#define APP_IO_MODE_IT_BOTH_EDGE     3  /**< Interrupt Mode with Rising and Falling edge trigger detection */
-#endif
+#include "app_io.h"
+#include "yp001_board_config.h"
 
 /*
  * DEFINES
@@ -63,7 +31,7 @@
  */
 
 /* I2C Address */
-#define ETA69631_I2C_ADDR           0x6A
+#define ETA69631_I2C_ADDR           YP001_CHARGER_ADDRESS
 
 /* Register Addresses */
 #define ETA69631_REG_INPUT_CTRL     0x00    /* Input Source Control */
@@ -167,20 +135,13 @@
 #define ETA69631_FAULT_NTC_COLD     0x01
 #define ETA69631_FAULT_NTC_HOT      0x02
 
-/* Pin Definitions - Final configuration based on your information:
-   GPIO28: CHG_SDA (I2C SDA) - Normal GPIO like GPIO18
-   AON_GPIO4: CHG_SCL (I2C SCL)
-   AON_GPIO5: CHG_INT (Interrupt) */
-#define ETA69631_I2C_SDA_PIN        APP_IO_PIN_28   /* GPIO28 for SDA */
-#define ETA69631_I2C_SCL_PIN        APP_IO_PIN_4    /* AON_GPIO4 for SCL */
-#define ETA69631_INT_PIN            APP_IO_PIN_5    /* AON_GPIO5 for CHG_INT */
-
-/* GPIO28 is a normal GPIO, likely GPIOB_PIN_12 based on GR5526 mapping */
-#define ETA69631_I2C_SDA_TYPE       APP_IO_TYPE_GPIOB
-#define ETA69631_I2C_SCL_TYPE       APP_IO_TYPE_AON
-#define ETA69631_INT_TYPE           APP_IO_TYPE_AON
-
-#define ETA69631_I2C_ID             APP_I2C_ID_1
+#define ETA69631_I2C_SDA_PIN        YP001_CHARGER_SDA_PIN
+#define ETA69631_I2C_SCL_PIN        YP001_CHARGER_SCL_PIN
+#define ETA69631_INT_PIN            YP001_CHARGER_INT_PIN
+#define ETA69631_I2C_SDA_TYPE       YP001_CHARGER_I2C_TYPE
+#define ETA69631_I2C_SCL_TYPE       YP001_CHARGER_I2C_TYPE
+#define ETA69631_INT_TYPE           YP001_CHARGER_INT_TYPE
+#define ETA69631_I2C_ID             APP_I2C_ID_4
 #define ETA69631_I2C_SPEED          I2C_SPEED_400K
 
 /*

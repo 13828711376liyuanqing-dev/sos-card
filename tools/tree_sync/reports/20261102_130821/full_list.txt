@@ -1,0 +1,5 @@
+cat1	new_in_prj	vendor_luac/air1103.luac
+cat1	new_in_prj	vendor_luac/es8311.luac
+cat1	new_in_prj	vendor_luac/exsipclient.luac
+cat1	new_in_prj	vendor_luac/exsipproto.luac
+cat1	new_in_prj	vendor_luac/vendor.json

@@ -1,3 +1,18 @@
+﻿#include "epaper_depg0150.h"
+/* SAM | 2026-10-09 14:48 +08:00 | Service attended charger tests because
+ * a CLI-only start without recurring checks cannot react to faults. */
+#include "../user/charger/yp001_charger.h"
+/* SAM | 2026-10-09 15:45 +08:00 | Use confirmed board-divider sampling. */
+#include "../user/yp001_battery.h"
+/* SAM | 2026-10-10 11:35 +08:00 | Add live XYZ to the existing screen. */
+#include "../user/gsensor_probe.h"
+#include "../user/yp001_scan_sched.h"
+#include "../user/user_app.h"
+#include "../user/yp001_psram_mem.h"
+#include "../user/ota/yp001_ota_usb_bench.h"
+/* SAM | 2026-10-09 15:15 +08:00 | Monotonic UI cadence because RTC
+ * seconds wrap each minute and EPD must not refresh continuously. */
+static volatile uint32_t s_battery_ui_ticks;
 
 //
 // Model: fsm.qm
@@ -74,6 +89,14 @@
 #include "bsp.h"                 // Board Support Package
 #include "../external/qpc_7.3.4/qpc/include/qsafe.h"
 #include "../user/epaper_depg0150.h"
+#include "../user/gui/epaper_lvgl.h"
+/* SAM | 2026-10-12 10:20 +08:00 | Use the imported page manager for
+ * CON902/CON2 triple-click page navigation. */
+#include "../user/gui/epaper_ui.h"
+/* SAM | 2026-10-13 08:36 +08:00 | Bind foreground business to real UI events. */
+#include "../user/business/yp001_business.h"
+/* SAM | 2026-10-13 15:00 +08:00 | Run BLE factory work in foreground, including ship confirm. */
+#include "../user/factory/yp001_factory_ble.h"
 
 // #include "TM4C123GH6PM.h"        // the device specific header (TI)
 // #include "rom.h"                 // the built-in ROM functions (TI)
@@ -92,6 +115,346 @@
 #include "../user/AOs.h"
 #include "../user/sensor.h"
 
+/* SAM | 2026-10-13 08:36 +08:00 | Sample physical levels independently because SDK long-click cannot enforce 500ms skew. */
+static bool s_business_ready;
+static volatile bool s_keys_ready;
+
+
+/* SAM | 2026-10-16 10:00 +08:00 | Bound serial sleep tests because SDK sleep requests need runtime evidence. */
+static volatile bool s_sleep_test;
+/* SAM | 2026-10-16 17:00 +08:00 | Latch physical edges and use an AON-backed deadline while SysTick is stopped. */
+#include "app_timer.h"
+#include "gr55xx_hal_pwr_mgmt.h"
+#include "platform_sdk.h"
+static volatile uint32_t s_sleep_source;
+static volatile bool s_sleep_timeout;
+static app_timer_id_t s_sleep_timer;
+static bool s_sleep_timer_created;
+/* SAM | 2026-10-19 18:00 +08:00 | Offer a bounded long observation window because human motion timing can miss the original rescue deadline. */
+static uint32_t s_sleep_rescue_ms = 60000U;
+/* SAM | 2026-10-19 18:20 +08:00 | Isolate key wake from sensor/other AON sources because unsolicited early boots cannot identify their trigger. */
+static bool s_sleep_keys_only;
+/* SAM | 2026-10-19 19:10 +08:00 | Select exact diagnostic wake sources because additive registration cannot isolate unexpected AON events. */
+static uint32_t s_sleep_expected_mask;
+static bool s_sleep_wake_mask_saved;
+static uint32_t s_sleep_wake_mask;
+/* SAM | 2026-10-16 17:28 +08:00 | Keep test state in retained static RAM because deep sleep must not depend on a nested caller's stack frame. */
+static bool s_sleep_prepared;
+static uint32_t s_sleep_tick_ctrl;
+static bool s_sleep_ready;
+static uint32_t s_sleep_busy_after_abort, s_sleep_extra_after_abort;
+/* SAM | 2026-10-17 17:14 +08:00 | Record whether ultra sleep returned or the AON WDT could not be stopped, since both previously looked like entry_failed. */
+static uint16_t s_sleep_ultra_wdt_result;
+static bool s_sleep_ultra_returned;
+/* SAM | 2026-10-17 18:03 +08:00 | Refuse sleep when low-active open-drain DA215 INT1 is already asserted on the board pull-up. */
+static bool s_sleep_gsensor_active_at_entry;
+/* SAM | 2026-10-17 17:38 +08:00 | Track whether DA215 INT1 stayed inactive after arming; three board trials latched AON7 before actual sleep. */
+static bool s_sleep_gsensor_settled;
+/* SAM | 2026-10-19 11:30 +08:00 | Share display readiness with the rail-restore path before its first use. */
+static bool s_lcd_ready;
+/* SAM | 2026-10-19 11:30 +08:00 | Save switched rails for aborted entry; ultra wake resets through the existing boot defaults. */
+static bool s_sleep_rails_saved;
+static uint32_t s_sleep_rail_latch;
+/* SAM | 2026-10-19 17:30 +08:00 | Preserve only the three LED output bits because boot leaves a diagnostic LED lit during sleep-current tests. */
+static uint32_t s_sleep_led_latch;
+
+static bool sleep_test_rails_off(void) {
+    /* SAM | 2026-11-06 +08:00 | A factory-held CAT1 must not be cut by a sleep diagnostic. */
+    if (yp001_cat1_factory_hold_active() || !yp001_ota_power_change_allowed()) return false;
+    s_sleep_rail_latch = GPIO0->DATAOUT;
+    s_sleep_led_latch = AON_MSIO->MSIO_A_PAD_CFG0;
+    s_sleep_rails_saved = true;
+    bool ok = true;
+    /* SAM | 2026-10-19 17:30 +08:00 | Active-low LEDs must all be high before sleeping; do not alter battery ADC MSIO_A1. */
+    if (app_io_write_pin(YP001_LED_RED_TYPE,
+        YP001_LED_RED_PIN | YP001_LED_GREEN_PIN | YP001_LED_BLUE_PIN, APP_IO_PIN_SET) != APP_DRV_SUCCESS) ok = false;
+    if ((AON_MSIO->MSIO_A_PAD_CFG0 & 0x0DU) != 0x0DU) ok = false;
+    /* Park all EPD outputs before removing VCI; keep sensor GPIO7 and 1.8V GPIO9 untouched. */
+    if (app_io_write_pin(YP001_LCD_RESET_TYPE,
+        YP001_LCD_RESET_PIN | YP001_LCD_DATA_PIN | YP001_LCD_CLK_PIN, APP_IO_PIN_RESET) != APP_DRV_SUCCESS) ok = false;
+    if (app_io_write_pin(YP001_LCD_RS_TYPE,
+        YP001_LCD_RS_PIN | YP001_LCD_CS_PIN, APP_IO_PIN_RESET) != APP_DRV_SUCCESS) ok = false;
+    if (app_io_write_pin(YP001_LCD_POWER_TYPE, YP001_LCD_POWER_PIN, APP_IO_PIN_RESET) != APP_DRV_SUCCESS) ok = false;
+    if (app_io_write_pin(YP001_CAT1_POWER_TYPE, YP001_CAT1_POWER_PIN, YP001_CAT1_POWER_OFF) != APP_DRV_SUCCESS) ok = false;
+    if (GPIO0->DATAOUT & (YP001_LCD_POWER_PIN | YP001_CAT1_POWER_PIN)) ok = false;
+    cli_printf("[SLEEP POWER] LEDs off: output=%02lX (expected mask=0D)\r\n",
+        (unsigned long)(AON_MSIO->MSIO_A_PAD_CFG0 & 0x0DU));
+    cli_printf("[SLEEP POWER] cat1_en=0 lcd_en=0 UART4 pads=input; sensor/1V8 retained; rail_latch_ok=%u; USB supply unmeasured\r\n", ok);
+    return ok;
+}
+
+static bool sleep_test_rails_restore(void) {
+    if (!s_sleep_rails_saved) return true;
+    bool ok = true;
+    /* SAM | 2026-10-19 17:30 +08:00 | Restore the prior LED latch only on failed/non-reset entry, without changing other MSIO pads. */
+    const uint32_t leds[] = {YP001_LED_RED_PIN, YP001_LED_GREEN_PIN, YP001_LED_BLUE_PIN};
+    for (unsigned int i = 0U; i < sizeof(leds) / sizeof(leds[0]); ++i) {
+        if (app_io_write_pin(YP001_LED_RED_TYPE, leds[i],
+            (s_sleep_led_latch & leds[i]) ? APP_IO_PIN_SET : APP_IO_PIN_RESET) != APP_DRV_SUCCESS) ok = false;
+    }
+    if (app_io_write_pin(YP001_CAT1_POWER_TYPE, YP001_CAT1_POWER_PIN,
+        (s_sleep_rail_latch & YP001_CAT1_POWER_PIN) ? YP001_CAT1_POWER_ON : YP001_CAT1_POWER_OFF) != APP_DRV_SUCCESS) ok = false;
+    if (app_io_write_pin(YP001_LCD_POWER_TYPE, YP001_LCD_POWER_PIN,
+        (s_sleep_rail_latch & YP001_LCD_POWER_PIN) ? APP_IO_PIN_SET : APP_IO_PIN_RESET) != APP_DRV_SUCCESS) ok = false;
+    if (s_sleep_rail_latch & YP001_LCD_POWER_PIN) {
+        delay_ms(100U);
+        s_lcd_ready = epaper_depg0150_init();
+        epaper_depg0150_force_full_next();
+        if (!s_lcd_ready) ok = false;
+    }
+    s_sleep_rails_saved = false;
+    return ok;
+}
+static void MyKey_Callback(uint8_t key_id, app_key_click_type_t click_type);
+static void sleep_test_deadline(void *context) { (void)context; s_sleep_timeout = true; }
+static void sleep_test_edge(app_io_evt_t *evt) {
+    if (evt && evt->type == APP_IO_TYPE_AON && s_sleep_test) s_sleep_source |= evt->pin;
+}
+static volatile bool s_sleep_gsensor_irq;
+/* SAM | 2026-10-16 10:00 +08:00 | ISR records only because UART reporting belongs in foreground. */
+void yp001_sleep_test_gsensor_irq(void) {
+    if (s_sleep_test) s_sleep_gsensor_irq = true;
+}
+static volatile uint32_t s_sleep_deep_count, s_sleep_idle_count;
+static void sleep_test_trace(uint8_t state) {
+    if (!s_sleep_test) return;
+    if (state == TRC_PWR_DSLEEP_MODE) ++s_sleep_deep_count;
+    if (state == TRC_PWR_WFE_MODE) ++s_sleep_idle_count;
+}
+static void sleep_test_stop(const char *reason) {
+    s_sleep_test = false;
+    pwr_mgmt_mode_set(PMR_MGMT_ACTIVE_MODE);
+    /* SAM | 2026-10-16 17:32 +08:00 | Restore sensor state even when the test is cancelled before its idle preparation. */
+    (void)gsensor_sleep_motion_restore();
+    cli_printf("[SLEEP TEST] exit=%s deep=%lu wfe=%lu\r\n", reason,
+        (unsigned long)s_sleep_deep_count, (unsigned long)s_sleep_idle_count);
+    cli_printf("[WAKE] MCU AWAKE source=%s; resumed, not rebooted\r\n", reason);
+}
+static int cmd_sleep_test(int argc, char *argv[]) {
+    /* SAM | 2026-10-18 21:40 +08:00 | Accept an explicit diagnostic polarity and keep legacy enter low-active because voltage timing has not established the final product polarity. */
+    /* SAM | 2026-10-19 18:00 +08:00 | Long is explicit and keeps polarity mandatory; preserve all old command forms and the default rescue. */
+    if (argc != 2 && !((argc == 3 || (argc == 4 && !strcmp(argv[3], "long"))) && !strcmp(argv[1], "enter") &&
+        (!strcmp(argv[2], "high") || !strcmp(argv[2], "low") || !strcmp(argv[2], "keys") || !strcmp(argv[2], "motion")))) {
+    cli_printf("sleep_test enter [low|high|keys|motion [long]]|status|exit (wake reboots; requested rescue=60s, long=300s)\r\n");
+        return -1;
+    }
+    if (!strcmp(argv[1], "status")) {
+        cli_printf("[SLEEP TEST] active=%u mode=%u deep=%lu wfe=%lu\r\n",
+            s_sleep_test, (unsigned)pwr_mgmt_mode_get(),
+            (unsigned long)s_sleep_deep_count, (unsigned long)s_sleep_idle_count);
+        return 0;
+    }
+    if (!strcmp(argv[1], "exit")) { sleep_test_stop("cli"); return 0; }
+    if (strcmp(argv[1], "enter")) return -1;
+    const yp_business_status_t *st = yp_business_status();
+    if (s_sleep_test || yp001_charger_ship_locked() || yp001_cat1_factory_hold_active() || !yp001_ota_power_change_allowed() ||
+        st->alarm_active || st->searching || st->call == YP_CALL_DIALING ||
+        st->call == YP_CALL_INCOMING || st->call == YP_CALL_CONNECTED ||
+        app_io_read_pin(YP001_KEY1_TYPE, YP001_KEY1_PIN) == APP_IO_PIN_RESET ||
+        app_io_read_pin(YP001_KEY2_TYPE, YP001_KEY2_PIN) == APP_IO_PIN_RESET) {
+        cli_printf("[SLEEP TEST] refused: busy/locked/key held\r\n"); return -1;
+    }
+    /* SAM | 2026-10-17 22:31 +08:00 | Initialize GPIO7 as output before driving it high because app_io_init resets the output latch and the earlier write-before-init test read low. */
+    app_io_init_t sensor_power = {.pull = APP_IO_NOPULL, .mode = APP_IO_MODE_OUTPUT,
+        .pin = YP001_SENSOR_POWER_PIN, .mux = YP001_GPIO_GPIO_MUX};
+    if (app_io_init(YP001_SENSOR_POWER_TYPE, &sensor_power) != APP_DRV_SUCCESS) {
+        cli_printf("[SLEEP TEST] refused: GPIO7 output init failed\r\n"); return -1;
+    }
+    app_io_write_pin(YP001_SENSOR_POWER_TYPE, YP001_SENSOR_POWER_PIN, APP_IO_PIN_SET);
+    /* SAM | 2026-10-17 22:41 +08:00 | Verify the output latch instead of reading the pad because GPIO output mode disables pad input sampling (DPAD_IE_N). */
+    if ((GPIO0->DATAOUT & YP001_SENSOR_POWER_PIN) == 0U ||
+        (GPIO0->OUTENSET & YP001_SENSOR_POWER_PIN) == 0U ||
+        ((MCU_RET->DPAD_MUX_CTL_00_07 >> 28) & 0x0FU) != YP001_GPIO_GPIO_MUX) {
+        cli_printf("[SLEEP TEST] refused: GPIO7 config data=%08lX out=%08lX oe=%08lX mux=%lu\r\n",
+            (unsigned long)GPIO0->DATA, (unsigned long)GPIO0->DATAOUT,
+            (unsigned long)GPIO0->OUTENSET,
+            (unsigned long)((MCU_RET->DPAD_MUX_CTL_00_07 >> 28) & 0x0FU));
+        return -1;
+    }
+    /* SAM | 2026-10-18 21:40 +08:00 | Configure the selected output polarity before registering its matching MCU wake edge. */
+    s_sleep_rescue_ms = argc == 4 ? 300000U : 60000U;
+    /* SAM | 2026-10-19 18:20 +08:00 | Keys-only keeps sensor power/configuration but removes its external wake enable during the test. */
+    s_sleep_keys_only = argc >= 3 && !strcmp(argv[2], "keys");
+    /* SAM | 2026-10-19 19:10 +08:00 | Motion-only retains timed rescue and key-held entry protection, but only AON7 can wake it. */
+    s_sleep_expected_mask = s_sleep_keys_only ? (YP001_KEY1_PIN | YP001_KEY2_PIN) :
+        (argc >= 3 && !strcmp(argv[2], "motion")) ? YP001_SENSOR_INT_PIN :
+        (YP001_KEY1_PIN | YP001_KEY2_PIN | YP001_SENSOR_INT_PIN);
+    if (!gsensor_sleep_motion_arm(argc >= 3 && !strcmp(argv[2], "high"))) {
+        cli_printf("[SLEEP TEST] refused: DA215 motion INT setup failed\r\n"); return -1;
+    }
+    /* SAM | 2026-10-16 10:00 +08:00 | Arm the wired GS_INT even if automatic sensor configuration failed; this tests IRQ wiring only. */
+    /* SAM | 2026-10-18 21:40 +08:00 | Use rising for high-active and falling for low-active; do not infer polarity from an out-of-window voltage. */
+    app_gpiote_param_t gs = {YP001_SENSOR_INT_TYPE, YP001_SENSOR_INT_PIN,
+        gsensor_sleep_motion_active_high() ? APP_IO_MODE_IT_RISING : APP_IO_MODE_IT_FALLING,
+        APP_IO_NOPULL, DA221_gpio_int_callback};
+    if (app_gpiote_config(&gs) != APP_DRV_SUCCESS) {
+        (void)gsensor_sleep_motion_restore();
+        cli_printf("[SLEEP TEST] refused: GS_INT registration failed\r\n"); return -1;
+    }
+    s_sleep_gsensor_irq = false;
+    s_sleep_deep_count = s_sleep_idle_count = 0;
+    pwr_mgmt_register_trace_func(sleep_test_trace, NULL);
+    ll_pwr_set_wakeup_condition(PWR_WKUP_COND_EXT);
+    /* SAM | 2026-10-16 17:00 +08:00 | Pause guarded charging before suspending its software safety sampler. */
+    if (!yp001_charger_test_stop()) {
+        (void)gsensor_sleep_motion_restore();
+        cli_printf("[SLEEP TEST] refused: cannot stop charging safely\r\n"); return -1;
+    }
+    /* SAM | 2026-10-17 17:06 +08:00 | State the reset-on-wake behavior because ultra sleep cannot resume the old RAM execution context. */
+    cli_printf("[SLEEP TEST ultra] armed; charging stopped; keys/GS_INT wake or requested %lus rescue; wake reboots\r\n",
+        (unsigned long)(s_sleep_rescue_ms / 1000U));
+    s_sleep_test = true;
+    pwr_mgmt_mode_set(PMR_MGMT_SLEEP_MODE);
+    return 0;
+}
+CLI_CMD_REGISTER("sleep_test", "enter/status/exit bounded deep-sleep diagnostic", cmd_sleep_test);
+
+/* SAM | 2026-10-16 17:00 +08:00 | Suspend foreground producers rather than merely selecting a sleep policy. */
+static void sleep_test_prepare(void) {
+    /* SAM | 2026-10-16 17:28 +08:00 | Prepare once, then call the SDK scheduler from the established QV idle site because nested scheduling corrupted the return stack on the board. */
+    mem_pwr_mgmt_mode_set(MEM_POWER_FULL_MODE);
+    s_sleep_tick_ctrl = SysTick->CTRL;
+    s_sleep_source = 0U; s_sleep_timeout = false;
+    s_sleep_ultra_wdt_result = 0U; s_sleep_ultra_returned = false;
+    s_sleep_gsensor_active_at_entry = false;
+    s_sleep_gsensor_settled = false;
+    s_sleep_ready = true;
+    if (!s_sleep_timer_created) {
+        s_sleep_timer_created = app_timer_create(&s_sleep_timer, ATIMER_ONE_SHOT, sleep_test_deadline) == SDK_SUCCESS;
+    }
+    s_sleep_ready = s_sleep_timer_created;
+    s_sleep_wake_mask_saved = false;
+    app_gpiote_param_t wake_pins[] = {
+        {YP001_KEY1_TYPE, YP001_KEY1_PIN, APP_IO_MODE_IT_FALLING, APP_IO_PULLUP, sleep_test_edge},
+        {YP001_KEY2_TYPE, YP001_KEY2_PIN, APP_IO_MODE_IT_FALLING, APP_IO_PULLUP, sleep_test_edge},
+        /* SAM | 2026-10-18 21:40 +08:00 | Match both wake registration sites to the selected DA215 polarity so high-active comparison cannot retain falling-only wake. */
+        {YP001_SENSOR_INT_TYPE, YP001_SENSOR_INT_PIN,
+         gsensor_sleep_motion_active_high() ? APP_IO_MODE_IT_RISING : APP_IO_MODE_IT_FALLING,
+         APP_IO_NOPULL, sleep_test_edge}
+    };
+    if (app_gpiote_init(wake_pins, 3U) != APP_DRV_SUCCESS) s_sleep_ready = false;
+    /* SAM | 2026-10-19 19:10 +08:00 | Bound every diagnostic mode to its requested mask; log inherited sources without attributing reset cause. */
+    if (s_sleep_ready) {
+        s_sleep_wake_mask = AON_IO->EXT_WAKEUP_CTRL0 & 0xFFU;
+        s_sleep_wake_mask_saved = true;
+        ll_aon_gpio_disable_it(0xFFU);
+        ll_aon_gpio_clear_flag_it(0xFFU & ~s_sleep_expected_mask);
+        ll_aon_gpio_enable_it(s_sleep_expected_mask);
+        cli_printf("[SLEEP TEST] AON before=%02lX enable=%02lX expected=%02lX; sensor power retained\r\n",
+            (unsigned long)s_sleep_wake_mask,
+            (unsigned long)(AON_IO->EXT_WAKEUP_CTRL0 & 0xFFU),
+            (unsigned long)s_sleep_expected_mask);
+        if ((AON_IO->EXT_WAKEUP_CTRL0 & 0xFFU) != s_sleep_expected_mask) s_sleep_ready = false;
+    }
+    /* SAM | 2026-10-19 18:00 +08:00 | Keep both deadline paths on the same selected duration. */
+    if (s_sleep_ready && app_timer_start_api(&s_sleep_timer, s_sleep_rescue_ms, NULL) != SDK_SUCCESS) s_sleep_ready = false;
+    app_log_flush();
+    /* SAM | 2026-10-17 17:21 +08:00 | Capture live AON wake levels before UART pause to distinguish an asserted DA215 INT from a timed wake. */
+    cli_printf("[SLEEP TEST ultra] pins k1=%u k2=%u gs=%u extstat=%02lX raw=%08lX\r\n",
+        (unsigned)app_io_read_pin(YP001_KEY1_TYPE, YP001_KEY1_PIN),
+        (unsigned)app_io_read_pin(YP001_KEY2_TYPE, YP001_KEY2_PIN),
+        (unsigned)app_io_read_pin(YP001_SENSOR_INT_TYPE, YP001_SENSOR_INT_PIN),
+        (unsigned long)AON_CTL->EXT_WAKEUP_STAT, (unsigned long)AON_CTL->AON_SLP_EVENT_RAW);
+    /* SAM | 2026-10-17 22:41 +08:00 | Report GPIO7 input sample separately because output-mode DPAD_IE_N disables that sample; use latch, direction and mux as configuration evidence. */
+    cli_printf("[SLEEP TEST ultra] sensor_pwr pad_in=%u data=%08lX out=%08lX oe=%08lX mux=%lu dpad=%08lX\r\n",
+        (unsigned)app_io_read_pin(YP001_SENSOR_POWER_TYPE, YP001_SENSOR_POWER_PIN),
+        (unsigned long)GPIO0->DATA,
+        (unsigned long)GPIO0->DATAOUT,
+        (unsigned long)GPIO0->OUTENSET,
+        (unsigned long)((MCU_RET->DPAD_MUX_CTL_00_07 >> 28) & 0x0FU),
+        (unsigned long)AON_PWR->DPAD_LE_CTRL);
+    /* SAM | 2026-10-17 11:01 +08:00 | Identify the lower-stack build because v4 warm boot trapped in main_init after an AON7 edge. */
+    cli_printf("[SLEEP TEST ultra] entering: UART silent until physical wake/timeout; busy=%08lX extra=%08lX\r\n",
+        (unsigned long)g_devices_state, (unsigned long)g_extra_devices_state);
+    /* SAM | 2026-10-18 21:40 +08:00 | Require 500ms at the selected inactive level without the matching AON7 edge; bound qualification at 2s. */
+    if (s_sleep_ready && !s_sleep_keys_only) {
+        unsigned int quiet_steps = 0U;
+        for (unsigned int step = 0U; step < 400U && quiet_steps < 100U; ++step) {
+            if ((step % 20U) == 0U) (void)app_aon_wdt_refresh();
+            /* SAM | 2026-10-18 21:40 +08:00 | Qualify the selected inactive level rather than always demanding a high pad. */
+            bool active = gsensor_sleep_motion_pin_active();
+            if (active || (s_sleep_source & YP001_SENSOR_INT_PIN)) {
+                quiet_steps = 0U;
+                /* SAM | 2026-10-17 17:40 +08:00 | Drop only the pre-sleep sensor edge atomically; preserve a key edge observed during qualification. */
+                __disable_irq();
+                s_sleep_source &= ~YP001_SENSOR_INT_PIN;
+                __enable_irq();
+            } else {
+                ++quiet_steps;
+            }
+            delay_ms(5U);
+        }
+        s_sleep_gsensor_settled = quiet_steps >= 100U;
+    }
+    /* SAM | 2026-10-19 18:20 +08:00 | A masked sensor must not veto key-only entry or consume a pending key edge. */
+    if (s_sleep_keys_only) s_sleep_gsensor_settled = true;
+    s_sleep_gsensor_active_at_entry = !s_sleep_keys_only && gsensor_sleep_motion_pin_active();
+    if (!s_sleep_gsensor_settled || s_sleep_gsensor_active_at_entry || (s_sleep_source & YP001_SENSOR_INT_PIN)) s_sleep_ready = false;
+    /* SAM | 2026-10-17 17:51 +08:00 | Read the sensor's own motion flag before the failing test restores its configuration. */
+    if (!s_sleep_gsensor_settled || s_sleep_gsensor_active_at_entry) gsensor_sleep_motion_diag();
+    if (!yp001_test_uart_pause()) s_sleep_ready = false;
+    /* SAM | 2026-10-19 11:30 +08:00 | Test whole-board rail-off after isolating UART4, rather than calling UART silence a current reduction. */
+    if (s_sleep_ready && !sleep_test_rails_off()) s_sleep_ready = false;
+    SysTick->CTRL = 0U;
+    SCB->ICSR = SCB_ICSR_PENDSTCLR_Msk;
+    /* SAM | 2026-10-17 17:27 +08:00 | Keep the AON WDT out of this timed diagnostic wake mask; the live board reported its driver not initialized. */
+    ll_pwr_set_wakeup_condition(PWR_WKUP_COND_EXT);
+    /* Already-held keys must abort even if the falling edge preceded reconfiguration. */
+    if (app_io_read_pin(YP001_KEY1_TYPE, YP001_KEY1_PIN) == APP_IO_PIN_RESET) s_sleep_source |= YP001_KEY1_PIN;
+    if (app_io_read_pin(YP001_KEY2_TYPE, YP001_KEY2_PIN) == APP_IO_PIN_RESET) s_sleep_source |= YP001_KEY2_PIN;
+    s_sleep_busy_after_abort = g_devices_state;
+    s_sleep_extra_after_abort = g_extra_devices_state;
+    if (s_sleep_busy_after_abort || s_sleep_extra_after_abort) s_sleep_ready = false;
+    /* SAM | 2026-10-17 22:41 +08:00 | Abort if the GPIO7 output latch, direction, mux or sleep-pad latch is wrong; input sample is disabled in output mode. */
+    if ((GPIO0->DATAOUT & YP001_SENSOR_POWER_PIN) == 0U ||
+        (GPIO0->OUTENSET & YP001_SENSOR_POWER_PIN) == 0U ||
+        ((MCU_RET->DPAD_MUX_CTL_00_07 >> 28) & 0x0FU) != YP001_GPIO_GPIO_MUX ||
+        (AON_PWR->DPAD_LE_CTRL & AON_PWR_DPAD_LE_CTRL_SLEEP) != 0U) s_sleep_ready = false;
+    /* SAM | 2026-10-19 19:10 +08:00 | Recheck every mode immediately before entry so later peripheral setup cannot silently expand wake sources. */
+    if ((AON_IO->EXT_WAKEUP_CTRL0 & 0xFFU) != s_sleep_expected_mask) s_sleep_ready = false;
+    s_sleep_prepared = true;
+}
+static void sleep_test_finish(void) {
+    /* SAM | 2026-10-16 17:28 +08:00 | Restore only after the top-level scheduler returned from wake; no sleep-frame locals survive across deep sleep. */
+    pwr_mgmt_mode_set(PMR_MGMT_ACTIVE_MODE);
+    if (s_sleep_timer_created) app_timer_stop_api(&s_sleep_timer);
+    app_key_gpio_t keys[] = {
+        {YP001_KEY1_TYPE, YP001_KEY1_PIN, APP_IO_MODE_IT_FALLING, APP_IO_PULLUP, 0},
+        {YP001_KEY2_TYPE, YP001_KEY2_PIN, APP_IO_MODE_IT_FALLING, APP_IO_PULLUP, 1}
+    };
+    bool restored = app_key_init(keys, 2U, MyKey_Callback);
+    app_gpiote_param_t gs = {YP001_SENSOR_INT_TYPE, YP001_SENSOR_INT_PIN,
+        APP_IO_MODE_IT_BOTH_EDGE, APP_IO_NOPULL, DA221_gpio_int_callback};
+    if (app_gpiote_config(&gs) != APP_DRV_SUCCESS) restored = false;
+    /* SAM | 2026-10-19 18:20 +08:00 | Restore source enables on abort/return; a reset wake follows existing boot initialization. */
+    if (s_sleep_wake_mask_saved) {
+        ll_aon_gpio_disable_it(0xFFU);
+        ll_aon_gpio_enable_it(s_sleep_wake_mask);
+        s_sleep_wake_mask_saved = false;
+    }
+    if (!gsensor_sleep_motion_restore()) restored = false;
+    SysTick->VAL = 0U; SysTick->CTRL = s_sleep_tick_ctrl;
+    /* SAM | 2026-10-19 11:30 +08:00 | Restore switched peripherals before UART4 after entry failure or unexpected non-reset return. */
+    if (!sleep_test_rails_restore()) restored = false;
+    if (!yp001_test_uart_resume()) restored = false;
+    app_aon_wdt_refresh();
+    const char *reason = !s_sleep_ready ? "entry_failed" : (s_sleep_source & YP001_KEY1_PIN) ? "key1" :
+        (s_sleep_source & YP001_KEY2_PIN) ? "key2" : (s_sleep_source & YP001_SENSOR_INT_PIN) ? "gsensor_irq" : "timeout";
+    /* SAM | 2026-10-17 17:27 +08:00 | Distinguish an already asserted sensor interrupt from a busy peripheral when entry is refused. */
+    if (!s_sleep_gsensor_settled || s_sleep_gsensor_active_at_entry)
+        cli_printf("[SLEEP TEST] refused: GS_INT did not stay inactive for 500ms\r\n");
+    if (!s_sleep_ready) cli_printf("[SLEEP TEST] entry_failed busy=%08lX extra=%08lX\r\n",
+        (unsigned long)s_sleep_busy_after_abort, (unsigned long)s_sleep_extra_after_abort);
+    /* SAM | 2026-10-17 17:14 +08:00 | Expose the exact failed boundary on COM5 for the next board run. */
+    cli_printf("[SLEEP TEST ultra] wdt_deinit=%04X returned=%u gs_active_at_entry=%u gs_settled=%u\r\n",
+        s_sleep_ultra_wdt_result, s_sleep_ultra_returned, s_sleep_gsensor_active_at_entry, s_sleep_gsensor_settled);
+    /* SAM | 2026-10-17 11:01 +08:00 | Mark a restored v5 context to distinguish it from earlier fault logs. */
+    cli_printf("[SLEEP TEST v5] restored=%u irq=%02lX MSP=%08lX\r\n", restored,
+        (unsigned long)s_sleep_source, (unsigned long)__get_MSP());
+    s_sleep_prepared = false;
+    sleep_test_stop(reason);
+    /* Full SRAM remains selected for this attended diagnostic boot; measure lowest current only after retention is separately verified. */
+}
 
 // #include "transport_scheduler.h
 
@@ -152,9 +515,37 @@ void assert_failed(char const * const module, int_t const id) {
     Q_onError(module, id);
 }
 
+/* SAM | 2026-10-13 09:17 +08:00 | Route Arm C library assertions to the
+ * existing fatal handler because the QR encoder uses standard assert(). */
+#if defined(__ARMCC_VERSION)
+Q_NORETURN __aeabi_assert(const char *expression, const char *file, int line);
+Q_NORETURN __aeabi_assert(const char *expression, const char *file, int line) {
+    printf("C assertion: %s\n", expression);
+    Q_onError(file, line);
+}
+#endif
+
 //............................................................................
 void SysTick_Handler(void); // prototype
 void SysTick_Handler(void) {
+    /* SAM | 2026-10-09 14:48 +08:00 | Tick only, never I2C in ISR. */
+    yp001_charger_tick_ms(1000U / BSP_TICKS_PER_SEC);
+    /* SAM | 2026-10-13 15:00 +08:00 | ISR counts only for expiring factory permission. */
+    yp_factory_ble_tick(1000U / BSP_TICKS_PER_SEC);
+    /* SAM | 2026-10-09 15:15 +08:00 | ISR only counts; UI stays foreground. */
+    ++s_battery_ui_ticks;
+    /* SAM | 2026-10-13 14:15 +08:00 | Keep a short-key inhibit during factory
+     * ship qualification without posting new application events. */
+    if (s_keys_ready) yp001_charger_ship_key_sample(
+        app_io_read_pin(YP001_KEY1_TYPE, YP001_KEY1_PIN) == APP_IO_PIN_RESET ||
+        app_io_read_pin(YP001_KEY2_TYPE, YP001_KEY2_PIN) == APP_IO_PIN_RESET);
+    /* SAM | 2026-10-13 08:36 +08:00 | ISR only samples/queues; no UART, JSON or LVGL here. */
+    /* SAM | 2026-10-13 14:03 +08:00 | Factory ship explicitly suspends
+     * key business; physical key levels still invalidate qualification. */
+    if (s_keys_ready && !yp001_charger_ship_locked()) yp_business_keys(
+        app_io_read_pin(YP001_KEY1_TYPE, YP001_KEY1_PIN) == APP_IO_PIN_RESET,
+        app_io_read_pin(YP001_KEY2_TYPE, YP001_KEY2_PIN) == APP_IO_PIN_RESET,
+        s_battery_ui_ticks * (1000U / BSP_TICKS_PER_SEC));
     // QV_ISR_ENTRY();   // inform QV about entering an ISR
 
     QTIMEEVT_TICK_X(0U, &l_SysTick_Handler); // time events at rate 0
@@ -177,52 +568,141 @@ void LedBlinkJkb_Headl(){
 }
 static void MyKey_Callback(uint8_t key_id, app_key_click_type_t click_type)
 {
-    switch (key_id) {
-        case 0:  // UP 键 (SW1)
-            if (click_type == APP_KEY_SINGLE_CLICK) {
-             #if (TK_Board_PAD_UART_DBG == 1)
-              printf("KEY SINGLE_CLICK\n");
-            #endif
-                QEvt *e = Q_NEW(QEvt, SIP_HANGUP_KEY_SIG);
-                if (e != NULL) {
-                    QACTIVE_POST((QActive*)&AO_Cat1Svr, e, (void*)0);
-                }
-            } else if (click_type == APP_KEY_LONG_CLICK) {
-             #if (TK_Board_PAD_UART_DBG == 1)
-              printf("KEY LONG_CLICK\n");
-            #endif
-                QEvt *e = Q_NEW(QEvt, SOS_KEY_SIG);
-                if (e != NULL) {
-                    QACTIVE_POST(app_state_machine, e, (void*)0);
-                }
-            }
-            LedBlinkJkb_Headl();
-            break;
+    /* SAM | 2026-10-13 14:03 +08:00 | No page/call work during ship cutoff. */
+    if (yp001_charger_ship_locked()) return;
+    if (key_id > 1U) return;
 
-        case 1:  // OK 键 (SW2)
-            if (click_type == APP_KEY_SINGLE_CLICK) {
-            #if (TK_Board_PAD_UART_DBG == 1)
-               printf("PAD SINGLE_CLICK\n");
-            #endif
-                QEvt *e = Q_NEW(QEvt, SIP_ACCEPT_KEY_SIG);
-                if (e != NULL) {
-                    QACTIVE_POST((QActive*)&AO_Cat1Svr, e, (void*)0);
-                }
-            } else if (click_type == APP_KEY_LONG_CLICK) {
-            #if (TK_Board_PAD_UART_DBG == 1)
-               printf("PAD LONG_CLICK\n");
-            #endif
-                QEvt *e = Q_NEW(QEvt, SOS_KEY_R_SIG);
-                if (e != NULL) {
-                    QACTIVE_POST(app_state_machine, e, (void*)0);
-                }
-            }
-            LedBlinkJkb_Headl();
-            break;
+    /* SAM | 2026-10-13 08:36 +08:00 | SOS is qualified by the 10ms sampler
+     * because long-click callbacks do not provide simultaneous-down timing. */
+}
+static bool s_ble_started;
 
-        default:
-            break;
+/* SAM | 2026-10-30 19:55 +08:00 | OTA safety observations, independent of the display. Motion is the colleague's own judgement (yp_motion_*); the battery feed is the same one the display path makes, so both agree. */
+static void motion_observation_poll(void)
+{
+    uint32_t now = s_battery_ui_ticks * (1000U / BSP_TICKS_PER_SEC);
+    yp_motion_poll(now);
+    yp_business_motion(yp_motion_known(), yp_motion_moving(), now);
+}
+
+static void battery_observation_poll(void)
+{
+    static uint32_t last_battery_tick;
+    static bool battery_sampled;
+    uint32_t now = s_battery_ui_ticks;
+    uint32_t interval_ticks = battery_sampled ? 100U : 250U;
+    if ((uint32_t)(now - last_battery_tick) >= interval_ticks) {
+        yp001_charger_status_t charge;
+        uint16_t millivolts = 0;
+        yp001_battery_result_t adc_result = yp001_battery_read(&millivolts);
+        yp001_charger_poll();
+        bool charge_known = yp001_charger_display_status(&charge);
+        bool voltage_known = (adc_result == YP001_BATTERY_OK);
+        bool soc_known = voltage_known && charge_known && (charge.fault & 7U) == 0U;
+        /* USB-only bench tests use the real valid ADC percentage despite the disabled charger's NTC classification; production builds keep soc_known. */
+        bool ota_battery_known = soc_known || (voltage_known && charge_known &&
+            yp001_ota_usb_supply(charge.input_present, charge.power_good,
+                                 charge.thermal_limit, charge.fault, charge.power_raw));
+        yp_business_observation_clock(s_battery_ui_ticks * (1000U / BSP_TICKS_PER_SEC));
+        yp_business_battery(ota_battery_known,
+            ota_battery_known ? yp001_battery_estimate(millivolts) : 0U,
+            charge_known && charge.input_present &&
+            charge.fault == 0U && (charge.power_raw & 0x10U) &&
+            (charge.charge_state == 1U || charge.charge_state == 2U));
+        last_battery_tick = s_battery_ui_ticks;
+        battery_sampled = true;
     }
+}
+
+/* Read the served 10 ms SysTick counter directly in IRQ and foreground. It is an elapsed scheduler clock, not physical time while interrupts are masked by a Flash operation. */
+uint32_t yp001_uart_clock_ms(void)
+{
+    return s_battery_ui_ticks * (1000U / BSP_TICKS_PER_SEC);
+}
+
+/* Foreground-only observation, no UART/render/Flash work; reentrant calls fail closed at the gate. */
+void yp001_safety_observation_poll(void)
+{
+    static bool busy;
+    if (busy || !s_business_ready || s_sleep_test || yp001_charger_ship_locked()) return;
+    busy = true;
+    motion_observation_poll();
+    yp_business_observation_clock(s_battery_ui_ticks * (1000U / BSP_TICKS_PER_SEC));
+    battery_observation_poll();
+    yp_business_observation_clock(s_battery_ui_ticks * (1000U / BSP_TICKS_PER_SEC));
+    busy = false;
+}
+
+/* SAM | 2026-10-10 11:35 +08:00 | Share one screen because XYZ must
+ * not replace the existing status. Battery keeps its 2.5s/10s cadence;
+ * each completed frame is followed by at least 2s before the next sample. */
+static void battery_display_poll(void)
+{
+    static uint32_t last_battery_tick;
+    static uint32_t last_frame_tick;
+    static bool battery_sampled;
+    static bool frame_attempted;
+    static const char *last_text;
+    static bool last_known;
+    static epaper_home_status_t home = { .ble_known = true };
+    uint32_t now = s_battery_ui_ticks;
+    if (!s_lcd_ready || (frame_attempted &&
+        (uint32_t)(now - last_frame_tick) < 200U && !epaper_ui_nav_pending())) return;
+
+    uint32_t interval_ticks = battery_sampled ? 1000U : 250U;
+    if ((uint32_t)(now - last_battery_tick) >= interval_ticks) {
+        yp001_charger_status_t charge;
+        uint16_t millivolts = 0;
+        const char *state;
+        yp001_battery_result_t adc_result = yp001_battery_read(&millivolts);
+        yp001_charger_poll();
+        bool charge_known = yp001_charger_display_status(&charge);
+        bool voltage_known = (adc_result == YP001_BATTERY_OK);
+        bool soc_known = voltage_known && charge_known && (charge.fault & 7U) == 0U;
+        uint8_t percent = soc_known ? yp001_battery_estimate(millivolts) : 0U;
+        if (!charge_known) state = "I2C ERROR";
+        else if ((charge.fault & 7U) != 0U) state = "NTC FAULT";
+        else if (charge.fault != 0U) state = "CHG FAULT";
+        else if (adc_result == YP001_BATTERY_ADC_RANGE) state = "ADC RANGE";
+        else if (!charge.input_present) state = soc_known ? "BAT SUPPLY" : "NO INPUT";
+        else if (yp001_charger_is_complete()) state = "CHG DONE";
+        else if (!(charge.power_raw & 0x10U)) state = "EXT IDLE";
+        else if (charge.charge_state == 3U) state = "CHG DONE";
+        else if (charge.charge_state == 1U || charge.charge_state == 2U)
+            state = "CHARGING";
+        else state = "EXT IDLE";
+        home.battery_known = soc_known;
+        home.battery_percent = percent;
+        home.voltage_known = voltage_known;
+        home.battery_mv = millivolts;
+        home.power_text = state;
+        /* SAM | 2026-10-13 08:36 +08:00 | Known ADC/charger evidence feeds business; it never enables charging. */
+        /* SAM | 2026-10-30 19:55 +08:00 | Same OTA battery feed as battery_observation_poll(); identical to the original in production builds (YP001_OTA_USB_BENCH_TEST=0). */
+        bool ota_battery_known = soc_known || (voltage_known && charge_known &&
+            yp001_ota_usb_supply(charge.input_present, charge.power_good,
+                                 charge.thermal_limit, charge.fault, charge.power_raw));
+        yp_business_battery(ota_battery_known, ota_battery_known ? yp001_battery_estimate(millivolts) : 0U,
+            charge_known && charge.input_present &&
+            charge.fault == 0U && (charge.power_raw & 0x10U) &&
+            (charge.charge_state == 1U || charge.charge_state == 2U));
+        last_battery_tick = now;
+        battery_sampled = true;
+    }
+    /* SAM | 2026-10-13 08:40 +08:00 | EPD refresh only changed business/pages because fixed 2s refresh wastes power and blocks work. */
+    if (!epaper_ui_needs_refresh()) return;
+    home.ble_ready = s_ble_started;
+    bool voltage_known = home.voltage_known;
+    if (last_text == NULL || voltage_known != last_known)
+        epaper_depg0150_force_full_next();
+    if (epaper_lvgl_show_home(&home)) {
+        last_text = home.power_text ? home.power_text : "UNKNOWN";
+        last_known = voltage_known;
+    } else {
+        cli_printf("[XYZ UI] refresh failed; screen may be stale\r\n");
+    }
+    epaper_ui_nav_consumed();
+    frame_attempted = true;
+    last_frame_tick = s_battery_ui_ticks;
 }
 app_aon_wdt_params_t s_params;
 void app_aon_wdt_evt_handler(void)
@@ -230,38 +710,153 @@ void app_aon_wdt_evt_handler(void)
     Led_Jkb(1,0,0);
 }
 
+/* SAM | 2026-10-12 19:23 +08:00 | Load OTA ownership before GPIO defaults because reset may resume installation. */
+#include "ota/yp001_ota.h"
 void BSP_init(void) {
+    /* SAM | 2026-10-13 08:36 +08:00 | Initialize before first UI render; never initialize from sample labels. */
+    yp_psram_mem_init();
+    
+    //yp_scan_sched_init();
+    yp001_ota_init();
 
     // SystemCoreClockUpdate();
 
-    app_periph_init(); // 硬件 + CLI 初始化
-    APP_LOG_INFO("BOOT: J5 CDC UART3 ready; LCD BUSY=GPIO8 RES=AON_GPIO2");
+    NVIC_SetPriorityGrouping(0U);
+    NVIC_SetPriority(I2C0_IRQn, QF_AWARE_ISR_CMSIS_PRI + 1U);
+    NVIC_SetPriority(DMA1_IRQn, QF_AWARE_ISR_CMSIS_PRI + 1U);
+    NVIC_SetPriority(AON_EXT_IRQn, QF_AWARE_ISR_CMSIS_PRI + 2U);
+    NVIC_SetPriority(SLPTIMER_IRQn, QF_AWARE_ISR_CMSIS_PRI + 2U);
+    app_periph_init(); // Hardware and CLI; commands run in foreground.
+    APP_LOG_INFO("BOOT: YP001 GR5526; CAT1 power only; UART manual; DEPG0150 GPIO24/25");
     app_log_flush();
-    gpio_init();//v1.1LED有变化
-    APP_LOG_INFO("BOOT stage 5: board GPIO ready; LCD GPIO init");
-    if (epaper_depg0150_init())
-    {
-        APP_LOG_INFO("BOOT stage 6: LCD GPIO ready; reset and refresh");
-        bool displayed = epaper_depg0150_display_demo_image();
-        APP_LOG_INFO("BOOT stage 7: LCD refresh result=%d", displayed);
-    }
-    else
-    {
-        APP_LOG_ERROR("EPD GPIO setup failed; skipping display");
-    }
+    gpio_init();//v1.1LED有变�?
+    /* SAM | 2026-10-09 12:20 +08:00 | Configure charger with CHG_CONFIG=0
+     * after 1.8V GPIO power setup, before LCD delays; NTC is not validated.
+     * Keep battery disconnected: software cannot inhibit power-on defaults. */
+    cli_execute_string("charger prepare");
+    APP_LOG_INFO("BOOT stage 5: board GPIO safe defaults applied");
+    /* User confirmed DEPG0150 panel and YP001 BUSY24/RESET25 wiring. */
 
     s_params.init.counter = 5000;
-    s_params.init.alarm_counter = 2500;
-    app_aon_wdt_init(&s_params, app_aon_wdt_evt_handler);
+    /* SAM | 2026-10-30 19:55 +08:00 | SDK104 alarm is 16-bit slow-clock ticks: 2500 ms becomes 66850 ticks at the measured 26740 Hz and the init FAILS (the watchdog never starts).
+     * Keep the 5-second reset timeout; use the SDK example's safe 1000 ms alarm and print the result. OTA rejects a failed refresh. */
+    s_params.init.alarm_counter = 1000;
+    uint16_t wdt_init_result = app_aon_wdt_init(&s_params, app_aon_wdt_evt_handler);
+    cli_printf("[WDT] init=0x%04X counter_ms=5000 alarm_ms=1000\r\n", wdt_init_result);
 
-    /* Charger remains disabled during LCD bring-up. J5 CDC UART3 uses GPIO4/5. */
-    ble_stack_init(ble_evt_handler, &heaps_table);
-    SysTick_Config(SystemCoreClock / 1000U);
+    /* SAM | 2026-10-10 18:06 +08:00 | Supply CAT1 for USB flashing; UART and PWRKEY remain manual. */
+    Pwr_Jkb(1, 1, 1);
+    cli_printf("[CAT1 POWER] boot rail requested ON; USB flashing first, AT manual\r\n");
+    cli_printf("[BOOT] LCD power GPIO10=HIGH; DEPG0150 LOGO start\r\n");
+    bool lcd_ok = epaper_depg0150_init() && epaper_depg0150_display_demo_image();
+    s_lcd_ready = lcd_ok;
+    app_log_flush();
+    cli_printf("[BOOT] LCD LOGO refresh %s (visual confirmation required)\r\n",
+               lcd_ok ? "completed" : "FAILED");
+    app_aon_wdt_refresh();
+	
     cli_execute_string("help");
     LedBlinkJkb_Headl();
-    Pwr_Jkb(1,1,1);
-    // Pwr_Jkb(0,0,0);
-#if (TK_Board_UART_DBG == 1)
+
+}
+//............................................................................
+void BSP_start(void)
+{
+    //==================== 1. QF 核心初始化（必须最先！�?===================
+    /* QF_init is called once by main before BSP_init. */
+
+    //==================== 2. 事件池扩容（根治内存耗尽�?===================
+    // 通用小事件池：基础事件、定时器
+    static QF_MPOOL_EL(QEvt) smlPoolSto[40];
+    QF_poolInit(smlPoolSto, sizeof(smlPoolSto), sizeof(smlPoolSto[0]));
+
+    // Beacon 自定义事件池：业务高频事�?
+    static QF_MPOOL_EL(BeaconDataEvt) beaconPoolSto[40]; // 20�?0
+    QF_poolInit(beaconPoolSto, sizeof(beaconPoolSto), sizeof(beaconPoolSto[0]));
+
+    //==================== 3. 发布订阅初始�?====================
+    static QSubscrList subscrSto[MAX_PUB_SIG];
+    QActive_psInit(subscrSto, Q_DIM(subscrSto));
+
+
+    //==================== 4. Blinky AO（低优先�?1�?===================
+    static QEvt const *blinkyQueueSto[40]; // 10�?0，防溢出
+    Blinky_ctor();
+    QACTIVE_START(
+        AO_Blinky,
+        1U,                  // 优先级：唯一、最�?
+        blinkyQueueSto,
+        Q_DIM(blinkyQueueSto),
+        (void *)0, 0U,
+        (void *)0
+    );
+
+    //==================== 5. LocaSvr AO（高优先�?2，唯一�?===================
+    static QEvt const *locaSvrQueueSto[20]; // 10�?0
+    LocaSvr_ctor();
+
+    // 【关键】绑定全局指针 + 判空防崩�?
+    app_state_machine = &LocaSvr_inst.super;
+    QACTIVE_START(
+        app_state_machine,
+        2U,                  // 优先级：唯一�?1
+        locaSvrQueueSto,
+        Q_DIM(locaSvrQueueSto),
+        (void *)0, 0U,
+        (void *)0
+    );
+
+    //==================== 6. Cat1Svr AO（串口服务，优先�?3，唯一�?===================
+#ifdef FEATURE_USE_CAT1_SVC
+    static QEvt const *cat1SvrQueueSto[40]; // 队列深度20，防止串口事件溢�?
+    Cat1Svr_ctor(&AO_Cat1Svr);          // 调用构造函数初始化基类和队�?
+    Cat1Svr_init_hw(&AO_Cat1Svr);       // 初始化UART硬件
+
+    QACTIVE_START(
+        &AO_Cat1Svr.super,
+        3U,                                  // 优先级：唯一�?2（高于LocaSvr，保证串口响应优先）
+        cat1SvrQueueSto,
+        Q_DIM(cat1SvrQueueSto),
+        (void *)0, 0U,
+        (void *)0
+    );
+#endif
+    // 1. 构造传感器实例，选择低功耗运动模�?
+    //App�?
+    // 2. 初始化事件队�?
+    static QEvt const *sensorQueueSto[20];
+    // 3. 启动QP活动对象，状态机自动开始运�?
+    DA221_ctor(&DA221_inst,DA221_MODE_LOW_POWER_MOTION);
+    QACTIVE_START(
+        &DA221_inst.super,
+        4U,                // 任务优先�?
+        sensorQueueSto,     // 事件缓存
+        Q_DIM(sensorQueueSto),
+        (void *)0, 0U,
+        (void *)0
+    );
+
+    cli_printf("[BOOT] QP objects started; initializing BLE\r\n");
+    int ble_status = ble_stack_init(ble_evt_handler, &heaps_table);
+    s_ble_started = (ble_status == 0);
+    cli_printf("[BOOT] BLE init returned: %d\r\n", ble_status);
+    /* Keep the boot LOGO until initialization has finished, then show the
+     * status page. Alarm and battery stay unknown until their services report. */
+    epaper_home_status_t home_status = {
+        .ble_known = true,
+        .ble_ready = s_ble_started,
+        .alarm_known = false,
+        .battery_known = false,
+    };
+    if (s_lcd_ready && !epaper_lvgl_show_home(&home_status)) {
+        cli_printf("[BOOT] EPD home refresh FAILED\r\n");
+    }
+#if defined(YP001_BOARD)
+    APP_KEY_INIT_Jkb(board_keys, MyKey_Callback,
+        KEY_CFG_Jkb(YP001_KEY1_TYPE, YP001_KEY1_PIN, APP_IO_MODE_IT_FALLING, APP_IO_PULLUP, 0),
+        KEY_CFG_Jkb(YP001_KEY2_TYPE, YP001_KEY2_PIN, APP_IO_MODE_IT_FALLING, APP_IO_PULLUP, 1),
+    );
+#elif (TK_Board_UART_DBG == 1)
     APP_KEY_INIT_Jkb(board_keys, MyKey_Callback,
         KEY_CFG_Jkb(APP_IO_TYPE_AON, APP_IO_PIN_1, APP_IO_MODE_IT_FALLING, APP_IO_PULLUP, 0),
     );
@@ -277,83 +872,11 @@ void BSP_init(void) {
         KEY_CFG_Jkb(APP_IO_TYPE_AON, APP_IO_PIN_4, APP_IO_MODE_IT_FALLING, APP_IO_PULLUP, 1),
     );
 #endif
-}
-//............................................................................
-void BSP_start(void)
-{
-    //==================== 1. QF 核心初始化（必须最先！）====================
-    QF_init(); // QP 框架底层初始化，漏了必崩
+    /* SAM | 2026-10-13 08:36 +08:00 | Start bridge after pin/keys initialization; preserve the single UART owner. */
+    s_keys_ready = true;
+    s_business_ready = true;
 
-    //==================== 2. 事件池扩容（根治内存耗尽）====================
-    // 通用小事件池：基础事件、定时器
-    static QF_MPOOL_EL(QEvt) smlPoolSto[40];
-    QF_poolInit(smlPoolSto, sizeof(smlPoolSto), sizeof(smlPoolSto[0]));
-
-    // Beacon 自定义事件池：业务高频事件
-    static QF_MPOOL_EL(BeaconDataEvt) beaconPoolSto[40]; // 20→40
-    QF_poolInit(beaconPoolSto, sizeof(beaconPoolSto), sizeof(beaconPoolSto[0]));
-
-    //==================== 3. 发布订阅初始化 ====================
-    static QSubscrList subscrSto[MAX_PUB_SIG];
-    QActive_psInit(subscrSto, Q_DIM(subscrSto));
-
-    //==================== 4. Blinky AO（低优先级=1）====================
-    static QEvt const *blinkyQueueSto[40]; // 10→20，防溢出
-    Blinky_ctor();
-    QACTIVE_START(
-        AO_Blinky,
-        1U,                  // 优先级：唯一、最小
-        blinkyQueueSto,
-        Q_DIM(blinkyQueueSto),
-        (void *)0, 0U,
-        (void *)0
-    );
-
-    //==================== 5. LocaSvr AO（高优先级=2，唯一）====================
-    static QEvt const *locaSvrQueueSto[20]; // 10→20
-    LocaSvr_ctor();
-
-    // 【关键】绑定全局指针 + 判空防崩溃
-    app_state_machine = &LocaSvr_inst.super;
-    QACTIVE_START(
-        app_state_machine,
-        2U,                  // 优先级：唯一、>1
-        locaSvrQueueSto,
-        Q_DIM(locaSvrQueueSto),
-        (void *)0, 0U,
-        (void *)0
-    );
-
-    //==================== 6. Cat1Svr AO（串口服务，优先级=3，唯一）====================
-#if 0
-    static QEvt const *cat1SvrQueueSto[40]; // 队列深度20，防止串口事件溢出
-    Cat1Svr_ctor(&AO_Cat1Svr);          // 调用构造函数初始化基类和队列
-    Cat1Svr_init_hw(&AO_Cat1Svr);       // 初始化UART硬件
-
-    QACTIVE_START(
-        &AO_Cat1Svr.super,
-        3U,                                  // 优先级：唯一、>2（高于LocaSvr，保证串口响应优先）
-        cat1SvrQueueSto,
-        Q_DIM(cat1SvrQueueSto),
-        (void *)0, 0U,
-        (void *)0
-    );
-#endif
-    // 1. 构造传感器实例，选择低功耗运动模式
-    //App类
-    // 2. 初始化事件队列
-    static QEvt const *sensorQueueSto[20];
-    // 3. 启动QP活动对象，状态机自动开始运行
-    DA221_ctor(&DA221_inst,DA221_MODE_LOW_POWER_MOTION);
-    QACTIVE_START(
-        &DA221_inst.super,
-        4U,                // 任务优先级
-        sensorQueueSto,     // 事件缓存
-        Q_DIM(sensorQueueSto),
-        (void *)0, 0U,
-        (void *)0
-    );
-
+	yp_business_init();
 }
 //............................................................................
 void BSP_ledOn() {
@@ -367,36 +890,11 @@ void BSP_ledOff() {
 //============================================================================
 // QF callbacks...
 void QF_onStartup(void) {
-    // set up the SysTick timer to fire at BSP_TICKS_PER_SEC rate
+    /* Peripheral drivers own IRQ registration/enabling. */
     SysTick_Config(SystemCoreClock / BSP_TICKS_PER_SEC);
-
-    // assign all priority bits for preemption-prio. and none to sub-prio.
-    NVIC_SetPriorityGrouping(0U);
-
-    // 1.I2C0 传感器DMA中断【最高感知优先级，不被其他外设打断】
-    NVIC_SetPriority(I2C0_IRQn, QF_AWARE_ISR_CMSIS_PRI + 1);
-    NVIC_EnableIRQ(I2C0_IRQn);
-
-    // 2.SysTick 系统滴答（内核计时）
-    NVIC_SetPriority(SysTick_IRQn, QF_AWARE_ISR_CMSIS_PRI);
-    NVIC_EnableIRQ(SysTick_IRQn);
-
-    // 3.J5 CDC 调试串口 UART3
-    NVIC_SetPriority(UART3_IRQn, QF_AWARE_ISR_CMSIS_PRI + 2);
-    NVIC_EnableIRQ(UART3_IRQn);
-
-    // 4.UART4 调试打印串口【最低，随便被抢占不影响业务】
-    NVIC_SetPriority(UART4_IRQn, QF_AWARE_ISR_CMSIS_PRI + 3);
-    NVIC_EnableIRQ(UART4_IRQn);
-
-    // 5. AON GPIO 中断（DA221 运动检测，与 I2C 同级，保证及时响应）
-    //    注意：根据芯片手册，AON GPIO 中断使用 AON_IRQn（或 AON_EXT_IRQn）
-    //    此处使用 AON_IRQn，若实际为 AON_EXT_IRQn 请替换
-    NVIC_SetPriority(AON_EXT_IRQn, QF_AWARE_ISR_CMSIS_PRI + 4);
-    NVIC_EnableIRQ(AON_EXT_IRQn);
-
-    // ...
-    // enable IRQs...
+    /* SAM | 2026-10-09 16:31 +08:00 | Use tested 0x7F SysTick priority because
+     * 0x3F caused qv_port assertion 110 during runtime EPD refresh. */
+    NVIC_SetPriority(SysTick_IRQn, 0x7FU);
 }
 //............................................................................
 void QF_onCleanup(void) {
@@ -407,21 +905,125 @@ void QF_onCleanup(void) {
 void QF_onContextSw(QActive *prev, QActive *next) {
 }
 #endif // QF_ON_CONTEXT_SW
+
+#define YP_MOTION_STILL_MS (5U * 60U * 1000U)   /* 设备默认: no motion >= 5 min => still */
+/* 静止判定阈值：优先服务器下发的 RestTime(分钟)，否则设备默�?5 分钟 */
+static uint32_t yp_motion_still_ms(void)
+{
+    return (g_config.RestTime > 0)
+               ? (uint32_t)g_config.RestTime * 60000U : YP_MOTION_STILL_MS;
+}
+static bool s_motion_known;
+static bool s_motion_moving;
+static uint32_t s_motion_event_ms;
+
+void yp_motion_poll(uint32_t now_ms)
+{
+    static uint32_t s_motion_last_ms;
+    if ((uint32_t)(now_ms - s_motion_last_ms) < 200U) return;
+    s_motion_last_ms = now_ms;
+    if (!s_motion_known) s_motion_known = true;
+   bool moving = gsensor_sleep_motion_pin_active();
+   //bool moving = !gsensor_is_stationary();
+    if (moving) {
+        s_motion_moving = true;
+        s_motion_event_ms = now_ms;
+    } else if (s_motion_moving &&
+               (uint32_t)(now_ms - s_motion_event_ms) >= yp_motion_still_ms()) {
+        s_motion_moving = false;
+    }
+	//cli_printf("gsensor is %s ,gpio_level=%d\r\n",s_motion_moving?"moving":"stationary",moving);
+}
+bool yp_motion_moving(void) { return s_motion_moving; }
+bool yp_motion_known(void) { return s_motion_known; }
+
+static int cmd_yp_motion(int argc, char *argv[])
+{
+    (void)argv;
+    if (argc != 1) {
+        cli_printf("Usage: yp_motion\r\n");
+        return -1;
+    }
+    uint32_t now_ms = s_battery_ui_ticks * (1000U / BSP_TICKS_PER_SEC);
+    uint32_t since = s_motion_known ?
+        (uint32_t)(now_ms - s_motion_event_ms) : 0U;
+    cli_printf("[MOTION] known=%u state=%s motion_ago_ms=%lu\r\n",
+               (unsigned)s_motion_known, s_motion_moving ? "moving" : "still",
+               (unsigned long)since);
+    return 0;
+}
+CLI_CMD_REGISTER("yp_motion", "show motion/still business judgement", cmd_yp_motion);
+
 //............................................................................
+/* SAM | 2026-10-13 08:36 +08:00 | Also called by EPD BUSY waits so an alarm is not delayed by a 30s panel timeout. */
+void yp001_business_service(void) {
+    /* SAM | 2026-10-13 14:03 +08:00 | Do not send new UART/OTA business while cutting SYS. */
+    if (yp001_charger_ship_locked()) return;
+    if (!s_business_ready) return;
+    /* SAM | 2026-10-30 19:55 +08:00 | Refresh motion and battery observations before UART dispatch, and service a pending OTA handshake (UART is also serviced inside EPD waits). */
+    yp001_safety_observation_poll();
+    yp001_business_uart_poll();
+    yp_business_poll(s_battery_ui_ticks * (1000U / BSP_TICKS_PER_SEC));
+    yp001_ota_service_pending();
+}
 void QV_onIdle(void) {
+    /* QV enters with interrupts locked. Never execute CLI/delays under lock. */
+    QF_INT_ENABLE();
+    /* SAM | 2026-10-09 14:48 +08:00 | Monitor before CLI work because
+     * safety checks should run before another foreground command. */
+    yp001_charger_poll();
+    debug_uart_cli_poll();
+    /* SAM | 2026-10-30 19:55 +08:00 | Install reset/health runs in the QV foreground, outside interrupt locks and nested EPD waits; bench CAT1 restart while a GR OTA owner is active. */
+    yp001_ota_poll();
+    yp001_cat1_ota_autostart_poll(s_battery_ui_ticks * (1000U / BSP_TICKS_PER_SEC));
+    /* SAM | 2026-10-18 21:52 +08:00 | Keep QV event dispatch and charger supervision running while the motion diagnostic exclusively owns sensor configuration; defer UI/business peripheral work until restoration. */
+    if (gsensor_wait_poll(s_battery_ui_ticks * (1000U / BSP_TICKS_PER_SEC))) {
+        app_aon_wdt_refresh();
+        return;
+    }
+    /* SAM | 2026-10-16 17:00 +08:00 | Enter before UI, XYZ, charger and business can start another transaction. */
+    if (s_sleep_test) {
+        /* SAM | 2026-10-16 17:28 +08:00 | Schedule from QV idle's original call level and finish on the next idle pass because the nested v3 path HardFaulted after wake. */
+        if (!s_sleep_prepared) sleep_test_prepare();
+        if (s_sleep_ready && !s_sleep_source && !s_sleep_timeout) {
+            /* SAM | 2026-10-17 17:27 +08:00 | Stop an active AON WDT for this bounded test; not-initialized is also safe, as observed on the board. */
+            s_sleep_ultra_wdt_result = app_aon_wdt_deinit();
+            /* SAM | 2026-10-17 17:18 +08:00 | 0x00E9 means WDT was never initialized on this board, so no WDT must be stopped before the timed SDK sleep. */
+            if (s_sleep_ultra_wdt_result == APP_DRV_SUCCESS || s_sleep_ultra_wdt_result == APP_DRV_ERR_NOT_INIT) {
+                /* SAM | 2026-10-19 18:00 +08:00 | Match ultra rescue to the foreground diagnostic selection. */
+                pwr_mgmt_ultra_sleep(s_sleep_rescue_ms);
+                s_sleep_ultra_returned = true;
+                if (s_sleep_ultra_wdt_result == APP_DRV_SUCCESS) (void)app_aon_wdt_init(&s_params, app_aon_wdt_evt_handler);
+            }
+            /* SAM | 2026-10-17 17:11 +08:00 | Restore the live diagnostic if ultra sleep unexpectedly returns or WDT deinit fails. */
+            s_sleep_ready = false;
+        } else {
+            sleep_test_finish();
+        }
+        return;
+    }
+    /* SAM | 2026-10-13 15:00 +08:00 | Permit only service's whitelist while ship locks normal work. */
+    yp_factory_ble_poll();
+    /* SAM | 2026-10-13 08:36 +08:00 | Process alarm before display and background work. */
+    yp001_business_service();
+    /* SAM | 2026-11-05 +08:00 | QP event allocation cannot nest the SDK callback's BASEPRI critical section. */
+    yp_beacon_deferred_poll();
+    /* SAM | 2026-10-09 15:15 +08:00 | UI runs after commands, with IRQs
+     * enabled; EPD waits also service charger safety polling. */
+    /* SAM | 2026-10-13 14:03 +08:00 | No blocking panel refresh after ship preparation. */
+    if (!yp001_charger_ship_locked()) {
+        yp_motion_poll(s_battery_ui_ticks * (1000U / BSP_TICKS_PER_SEC));
+        yp_scan_sched_poll(s_battery_ui_ticks * (1000U / BSP_TICKS_PER_SEC));
+        epaper_ui_poll(s_battery_ui_ticks * (1000U / BSP_TICKS_PER_SEC));
+        battery_display_poll();
+    }
     app_log_flush();
-    // transport_schedule();
+	#if APP_LOG_STORE_ENABLE
+    app_log_store_schedule();
+	#endif
     pwr_mgmt_schedule();
     app_aon_wdt_refresh();
-    QF_INT_ENABLE();
-
-#ifdef NDEBUG
-    // Put the CPU and peripherals to the low-power mode.
-    // you might need to customize the clock management for your application,
-    // see the datasheet for your particular Cortex-M MCU.
-    //
-    __WFI(); // Wait-For-Interrupt
-#endif
+    /* Active debug mode: no unprotected WFI after the idle queue check. */
 }
 
 //============================================================================
@@ -452,7 +1054,12 @@ void QV_onIdle(void) {
 
 static int cmd_ble_init(int argc, char *argv[])
 {
+    if (s_ble_started) {
+        cli_printf("BLE stack already initialized\r\n");
+        return 0;
+    }
     int ret = ble_stack_init(ble_evt_handler, &heaps_table);
+    s_ble_started = (ret == 0);
     if (ret == 0)
     {
         //printf("BLE stack initialized successfully\r\n");
@@ -464,28 +1071,45 @@ static int cmd_ble_init(int argc, char *argv[])
     return ret;
 }
 
-/* 注册命令：命令名 "ble_init"，描述 "Initialize BLE stack"，执行函数 cmd_ble_init */
+/* 注册命令：命令名 "ble_init"，描�?"Initialize BLE stack"，执行函�?cmd_ble_init */
 CLI_CMD_REGISTER("ble_init", "Initialize BLE stack", cmd_ble_init);
 
-void HardFault_Handler(void) {
-#if defined(__CC_ARM) && !defined(__GNUC__)
-    app_log_flush();
-    while (1) {
-    }
-#else
-    __asm volatile (
-        "MOV R0, LR\n"    // 保存链接寄存器（指示故障模式）
-        "MOV R1, PC\n"    // 保存程序计数器（故障发生地址）
-        "BL print_regs\n" // 调用寄存器打印函数
-    );
-    app_log_flush();
-    while(1);
-#endif
+/* Preserved in RAM for J-Link inspection even when UART output is unavailable. */
+volatile uint32_t yp001_fault_snapshot[12];
+__attribute__((noinline)) void yp001_hardfault_capture(uint32_t *frame, uint32_t exc_return)
+{
+    yp001_fault_snapshot[0] = 0x48464C54U;
+    yp001_fault_snapshot[1] = exc_return;
+    yp001_fault_snapshot[2] = (uint32_t)frame;
+    yp001_fault_snapshot[3] = frame[5]; /* Stacked LR */
+    yp001_fault_snapshot[4] = frame[6]; /* Faulting PC */
+    yp001_fault_snapshot[5] = frame[7]; /* Stacked xPSR */
+    yp001_fault_snapshot[6] = SCB->CFSR;
+    yp001_fault_snapshot[7] = SCB->HFSR;
+    yp001_fault_snapshot[8] = SCB->BFAR;
+    yp001_fault_snapshot[9] = SCB->MMFAR;
+    yp001_fault_snapshot[10] = frame[0];
+    yp001_fault_snapshot[11] = frame[1];
+    cli_printf("[FAULT] LR=%08lX PC=%08lX xPSR=%08lX CFSR=%08lX HFSR=%08lX\r\n",
+               (unsigned long)frame[5], (unsigned long)frame[6],
+               (unsigned long)frame[7], (unsigned long)SCB->CFSR,
+               (unsigned long)SCB->HFSR);
+    /* SAM | 2026-10-16 18:00 +08:00 | Expose the exception-frame location because all-zero PC alone cannot locate context loss. */
+    cli_printf("[FAULT FRAME] SP=%08lX EXC_RETURN=%08lX R0=%08lX R1=%08lX R2=%08lX R3=%08lX R12=%08lX\r\n",
+        (unsigned long)frame, (unsigned long)exc_return, (unsigned long)frame[0],
+        (unsigned long)frame[1], (unsigned long)frame[2], (unsigned long)frame[3], (unsigned long)frame[4]);
+    for (;;) { }
 }
-// 打印核心寄存器（需编译器支持，如GCC）
-void print_regs(uint32_t lr, uint32_t pc) {
-    printf("\nHardFault\nLR = 0x%08X, PC = 0x%08X\n", lr, pc);
-    // 可选：打印SP、R0-R3等寄存器（需汇编配合）
+
+__attribute__((naked)) void HardFault_Handler(void)
+{
+    __asm volatile (
+        "tst lr, #4\n"
+        "ite eq\n"
+        "mrseq r0, msp\n"
+        "mrsne r0, psp\n"
+        "mov r1, lr\n"
+        "b yp001_hardfault_capture\n");
 }
 
 #include "app_rtc.h"
@@ -494,4 +1118,9 @@ uint32_t get_rtc_tick(void)
     app_rtc_time_t time;
     app_rtc_get_time(&time);
     return time.sec*1000 + time.ms;
+}
+
+uint32_t BSP_tick_ms(void) 
+{ 
+    return s_battery_ui_ticks * (1000U / BSP_TICKS_PER_SEC); 
 }

@@ -26,8 +26,11 @@ typedef struct {
     }
 
 void cli_init(void);
+void cli_discard_input(void);
 void cli_process_char(uint8_t ch);
 void cli_printf(const char *fmt, ...);
+/* SAM | 2026-11-06 +08:00 | Structured maintenance callers need handler status, not just UART text. */
+int cli_execute_string_result(const char *cmd);
 void cli_execute_string(const char *cmd);
 
 #endif /* _CLI_H_ */

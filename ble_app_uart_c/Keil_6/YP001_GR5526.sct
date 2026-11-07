@@ -1,0 +1,41 @@
+; SAM | 2026-10-07 11:50 +08:00 | Restore SVN linker layout after legacy BAT deleted *.sct.
+; YP001 GR5526 XIP layout. Addresses follow custom_config.h and
+; SDK/platform/soc/linker/keil/flash_scatter_config.h.
+LR_IROM1 0x00202000 0x00FFE000 {
+    ER_VECTORS 0x00202000 FIXED 0x00000200 {
+        *.o (RESET, +First)
+        *(InRoot$$Sections)
+    }
+    ER_APP_INFO 0x00202200 FIXED 0x00000100 {
+        *.o (.ARM.__at_0x00202200)
+    }
+    ER_CLI_CMDS 0x00202300 FIXED 0x00001000 {
+        *(.cli_cmds)
+    }
+    FLASH_CODE +0 FIXED 0x00FFCD00 {
+        *(+RO)
+    }
+    ; SAM | 2026-10-08 22:42 +08:00 | Bound RAM code before the tested FPB reservation.
+    ER_RAM_CODE 0x00106000 0x00004F80 {
+        *(RAM_CODE)
+    }
+    ; SAM | 2026-10-08 22:42 +08:00 | Fix BLE INVSTATE by reserving the FPB table.
+    ; Alignment alone at generic RW end still faulted; SWD relocation to this
+    ; 128-byte-aligned reserved-RAM address restored advertising and CLI.
+    ; Keep Flash, vector/RW base, heap and stack unchanged.
+    RW_FPB 0x2000AF80 0x00000040 {
+        *(FPB)
+    }
+    ; SAM | 2026-10-17 10:59 +08:00 | Bound RW below 0x2003B000 and place the diagnostic stack in lower SRAM because v3/v4 warm wake lost the top-of-RAM return context.
+    RW_IRAM1 0x2000B000 0x00030000 {
+        *(+RW, +ZI)
+    }
+    ; SAM | 2026-10-20 +08:00 | Keep 32 bytes across SDK software reset; use the existing gap without relocating RW, stack, heap or Flash.
+    RW_WAKE_DIAG 0x2003B000 UNINIT 0x00000020 {
+        *(.bss.yp001_wake_diag)
+    }
+    ARM_LIB_HEAP 0x20079000 EMPTY 0x00004000 { }
+    ARM_LIB_STACK 0x20040000 EMPTY -0x00003000 { }
+    ; GRAPHICS Memory space AREA
+    GFX_MEM_HEAP 0x30080000 EMPTY 0x00800000 { }
+}

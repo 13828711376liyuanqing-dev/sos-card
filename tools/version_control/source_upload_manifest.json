@@ -1,0 +1,1551 @@
+{
+  "schema": "YP001_SOURCE_UPLOAD_V1",
+  "branch": "codex/version-protection-20261107",
+  "purpose": "Source candidate checkpoint for user-controlled Git upload",
+  "active_project": "ble_app_uart_c/Keil_6/YP001_GR5526.uvprojx",
+  "sdk": "SDK 1.0.4",
+  "cat1_root": "Air780EGH",
+  "cat1_soc": "Air780EGH/soc/LuatOS-SoC_V2052_Air780EGH_113.soc",
+  "source_identity": {
+    "version": "1.5.14",
+    "build": 18,
+    "status": "SOURCE_CANDIDATE_NOT_NEW_BUILT_FIRMWARE"
+  },
+  "gr_fix_status": "host_only_not_keil_built_not_flashed",
+  "references": [
+    {
+      "path": "SDK/platform/arch/arm/cortex-m/keil/Startup.S",
+      "git_blob": "78feb260476da3ec9b31b766e74169553cd3c883",
+      "sha256": "f395479c830af18d6613ce1c0ecdf37edfea02e69517b193e4d4437a252dd873"
+    },
+    {
+      "path": "SDK/platform/soc/linker/keil/ble_sdk.lib",
+      "git_blob": "f61b131740d4bf1fb79341e851534a402cdf88c7",
+      "sha256": "df6cdfd95d145e0946d87e471d320000687ddc57191e4129e4ab1f8eac5127f7"
+    },
+    {
+      "path": "SDK/platform/soc/linker/keil/graphics_sdk.lib",
+      "git_blob": "2e4668b0af4c8eca78bdd2d15c9a4f579590acf4",
+      "sha256": "ed82f85f65a5ab6c0c25865f0440d78871b031b7a4775e030e60fb26e71a7e24"
+    },
+    {
+      "path": "SDK/platform/soc/common/gr_system.c",
+      "git_blob": "1fd9671d0d29394d388f0998dad8efe2b351b58e",
+      "sha256": "e0c785cd2c4018a38dac019358c65b562b6b65cf904a7c6f426aae30660d3032"
+    },
+    {
+      "path": "SDK/platform/soc/common/gr_interrupt.c",
+      "git_blob": "4e211a9d5b7ca0b6c79b26edec0639cf9d75d934",
+      "sha256": "bf6d683239b3d6923be6d2105a73e1e0a2e2b15a91f4802aa4126143d5ad3447"
+    },
+    {
+      "path": "SDK/platform/soc/common/gr_platform.c",
+      "git_blob": "8f9e328b6f7f9e72e635dc7a6d6fdbd55a073122",
+      "sha256": "f61ea351c11d5a83c1e059d82349d1ef4389a5b3f70e105151fff8308d2ac91b"
+    },
+    {
+      "path": "SDK/platform/soc/src/gr_soc.c",
+      "git_blob": "073a6c2fc7616417ac41406bf7c1aae16acb35c1",
+      "sha256": "75809e792c71f579a9677d67faef2329823977ea4468f158d28ccc377ee7ab3c"
+    },
+    {
+      "path": "SDK/platform/boards/board_SK.c",
+      "git_blob": "9d7736676b518ff45f594062be32a1871b9af818",
+      "sha256": "454e29779e9c7bb0c84bab7356e4c9b898eb2b9eacfab64d042d061b18e1f735"
+    },
+    {
+      "path": "SDK/drivers/src/app_dma.c",
+      "git_blob": "44275be697a9d237ee65b5b9a63cff233d58f320",
+      "sha256": "03630c4efa50601dadd0bb4f227ddf0b757597711ad9d616690d4b5509246af6"
+    },
+    {
+      "path": "SDK/drivers/src/app_gpiote.c",
+      "git_blob": "a4697782712a85fdb1c9da82bda7ae15ac5fd178",
+      "sha256": "0e613ff9e548069e489d49ef49d85bb97010f2d57cfc56dd7dcd3955310de428"
+    },
+    {
+      "path": "SDK/drivers/src/app_io.c",
+      "git_blob": "09f6cccedefb696545e4ad48a2ca8a0f2292949b",
+      "sha256": "3d421bdd32342811d9617acebc112d9d28bdd5d52c1a0927ca26ab647c344189"
+    },
+    {
+      "path": "SDK/drivers/src/app_pwr_mgmt.c",
+      "git_blob": "4b0ae254b56bd87686905b3bf7763f0e72cfca73",
+      "sha256": "543701aa2507359b456d5bac43525d6ab4a78782759f200ffb1f08929a0a14b7"
+    },
+    {
+      "path": "SDK/drivers/src/app_uart.c",
+      "git_blob": "e9178e8492575bd09304eb9b9f162ade1bfbb8bc",
+      "sha256": "0eb3d602635d267e3f88aa983a1ff377ae4279598eeff23edc6b48cb73eccdc2"
+    },
+    {
+      "path": "SDK/drivers/src/app_uart_dma.c",
+      "git_blob": "ef30427324fbdf4a322e12288151997eb4db44c5",
+      "sha256": "17f90f4d846b6a39b971b180a4fee28e2632216793e86b51e3ad0788dab25ca6"
+    },
+    {
+      "path": "SDK/drivers/src/app_i2c.c",
+      "git_blob": "c799d71397e38f537b25bf5791253772ff278573",
+      "sha256": "9262b729463a1adc6501b6eb6bf0647c02d12be2e05149e061767fd6bd7b41b9"
+    },
+    {
+      "path": "SDK/drivers/src/app_i2c_dma.c",
+      "git_blob": "1d67eaa09c75d35fbc9e878280ae4543f0f19b56",
+      "sha256": "16491d11d6dd2febd17600fb773e700b923f42feea60bc0d2dee7cf977ea26cb"
+    },
+    {
+      "path": "SDK/drivers/src/app_adc.c",
+      "git_blob": "1e68f4fbd13d6fb660000800695b404dcf85fb5c",
+      "sha256": "284c61d73a228104b1516d9dc46e047a3459559a16cacd86a44751434a8ef7b1"
+    },
+    {
+      "path": "SDK/drivers/src/app_adc_dma.c",
+      "git_blob": "2518b82d51da2eb06b95b970af9832a5349e491e",
+      "sha256": "4b9852362f567ad7125bfaae70157c145139f2db0650d86751825abe5f21f23f"
+    },
+    {
+      "path": "SDK/drivers/src/app_rtc.c",
+      "git_blob": "473919ccfa03783b41a4e55abe3b4365ade6bb11",
+      "sha256": "e2f1f771edd28ee81feb91806bf1455648ff20fdc6aa65e7468e95851c7c7879"
+    },
+    {
+      "path": "SDK/drivers/src/app_aon_wdt.c",
+      "git_blob": "521c4a3b63bdb454397719c5d20e42fad498ea30",
+      "sha256": "9873f76982345ba76dd6aea90b5a7041cad51b2f7b015858e42ab98a3051df67"
+    },
+    {
+      "path": "SDK/components/libraries/ble/ble_scanner/ble_scanner.c",
+      "git_blob": "f93a246dfab859f82c7e6912998445d810ad988a",
+      "sha256": "cf1942855215b1465e2a966de70ff6e01503e3d857cbc90a2b73575607937f01"
+    },
+    {
+      "path": "SDK/components/libraries/app_key/app_key.c",
+      "git_blob": "43c262d1a0c65b2f58218e68b729dfe23e20d7e2",
+      "sha256": "8f883f1b07d108b414f298bb270b53d5a0eca006ff58baf78603a38d310ba2d8"
+    },
+    {
+      "path": "SDK/components/libraries/app_key/app_key_core.c",
+      "git_blob": "8db454d4e5a53b963e46e75b669f5cb138e74806",
+      "sha256": "c28a74eab4919a045093a648991db4cc80aea259e54f2076428a4262e09ccce4"
+    },
+    {
+      "path": "SDK/components/libraries/ring_buffer/ring_buffer.c",
+      "git_blob": "1ec5facb238f3cce3e7c375e1b6fda376718bad8",
+      "sha256": "4ed92ae6e985054660cfa78e5dd2dc0bba81022fc3bd222a49b6961a7a3306b1"
+    },
+    {
+      "path": "SDK/components/libraries/utility/utility.c",
+      "git_blob": "a6aff6f93b1137460318b7c0d7c74feafc016647",
+      "sha256": "1579dd0ab21ade57bcb35cd861c54ef86af9ef332a4302271e256de3a77d0eaf"
+    },
+    {
+      "path": "SDK/components/libraries/sensorsim/sensorsim.c",
+      "git_blob": "55417f58017b64f849f2a66a308fd9d73c9b7f16",
+      "sha256": "18d3dddd27bea2a6c1d92193ef60003630eb6a036f59f9aec14e33aeced39f1b"
+    },
+    {
+      "path": "SDK/components/libraries/pmu_calibration/pmu_calibration.c",
+      "git_blob": "98c2582a7636286de8a9e5b955a2eea3ca895442",
+      "sha256": "9e16e94269e3a118e4224ccf0094897b3d87a5013c50bb3b2fc8f71f3519559b"
+    },
+    {
+      "path": "SDK/components/libraries/app_timer/app_timer.c",
+      "git_blob": "bc256c800b2b4b9108c95da6909bc2de06a94e10",
+      "sha256": "0086e97db233147542100080cbf4cc7106d5a31ea84b351fb2d29261a13f5305"
+    },
+    {
+      "path": "SDK/components/libraries/app_assert/app_assert.c",
+      "git_blob": "a0dfac18ec0daef81b03df05002e08b2417e91e9",
+      "sha256": "5f0394d2cb1173433b0e19fc0cf100a1fdb0fbb7cf5064b95f2b056ca9d9227a"
+    },
+    {
+      "path": "SDK/components/libraries/app_error/app_error.c",
+      "git_blob": "52bcd6bfcb07be29c49fd6fbf8e7c879ac9adde8",
+      "sha256": "f655ce2c5ab169d588744010434c62973b91add823b0c4d2db69cf628344260e"
+    },
+    {
+      "path": "SDK/components/libraries/app_log/app_log.c",
+      "git_blob": "14745cc81d0f62c12ad0410eed6eece130558693",
+      "sha256": "484f60f34f2143a1b4eae0fa13305fc07a7d1df7d601e9721b1f319d91233944"
+    },
+    {
+      "path": "SDK/components/libraries/ble/ble_time/ble_time.c",
+      "git_blob": "b2d212f34e29202d59f98b9b1af7f7866e8ee3e6",
+      "sha256": "73954421e33d988ebb910b6ba1ef35a1cef960470fa4c2986a34a2279a8d8421"
+    },
+    {
+      "path": "SDK/components/sdk/ble.c",
+      "git_blob": "9fb2bbb626304f9f28795aaf3d0c0cb5416cdabb",
+      "sha256": "d8667078a195f239c6458c4cc964a17f6c227492a96192105eff325c6263ed24"
+    },
+    {
+      "path": "SDK/components/profiles/common/ble_prf_utils.c",
+      "git_blob": "6ae0953f982532ed5af677274e2cb6046d2996e0",
+      "sha256": "44defd1c8ab15d9c5de84e008332203462bc9504c5d8a0c04d94d68521573921"
+    },
+    {
+      "path": "SDK/components/profiles/gus/gus.c",
+      "git_blob": "04543a59dbec8067f073c53929f5279e6ea250fe",
+      "sha256": "deef9cefaca3db8c9bcb01658f70983d0c7c54855211765c1c77b35dd1864ee4"
+    },
+    {
+      "path": "SDK/components/profiles/gus_c/gus_c.c",
+      "git_blob": "9adfd598bdec17fea26d9d55e1657693145d06ca",
+      "sha256": "31b101e8f0f9fe741fc723beb2a02308744e3effbf2f608e3c027bc0d3b70aa8"
+    },
+    {
+      "path": "SDK/external/segger_rtt/SEGGER_RTT.c",
+      "git_blob": "64ca512048ebb6e1caa40c1e04403f3b3b59c5f0",
+      "sha256": "87dd845cfc13fb26064cae99cfb1a7753aafe23bcc43684ec93958a70670f3eb"
+    },
+    {
+      "path": "SDK/components/libraries/app_log/app_log_dump_port.c",
+      "git_blob": "41a298c953b02922d824c1fc4c44499134e9d673",
+      "sha256": "18ba27157dc754e18e5a7db5fb978ffbc51a426d75eab7655646dfd3893888b6"
+    },
+    {
+      "path": "SDK/components/libraries/app_log/app_log_store.c",
+      "git_blob": "e853ecbdf4acc09c3a2b8f576420e2ff3f775686",
+      "sha256": "c376de7b927529fa9974719d672d80e5017f90be59ffbcd19500171722f79c2c"
+    },
+    {
+      "path": "SDK/components/profiles/lms/lms.c",
+      "git_blob": "4a00d7e658a1a75a3c77a52eb74da5938b9ef50b",
+      "sha256": "8d04f19850e714ca4ec3df6946baa03998485deb95cce8f29277ade8892d250b"
+    },
+    {
+      "path": "SDK/drivers/src/app_graphics_ospi.c",
+      "git_blob": "1cc189765beaf0fbe91b81c8347dc72e72270479",
+      "sha256": "61790f4a900a7aaecd09caf31b9414edd443af18c33d60ff81d28855565b3272"
+    },
+    {
+      "path": "SDK/components/libraries/app_graphics_mem/app_graphics_mem.c",
+      "git_blob": "1397267f8c9e6aebdbd0062b79f794b1896cc664",
+      "sha256": "775d439447f301e077f52e6431fbc9f7f07f2f47ad2a2c26301568ebc1598f39"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/app.c",
+      "git_blob": "b80e58efb6d26c63cc7638f1239f72bc49cd8231",
+      "sha256": "a0ae49b6917b97af32fb20268c11e097d1c091bce8287d1e2a382ada5c6d15b7"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/at_cmds.c",
+      "git_blob": "33a88ad993bc551ed65600f882e97f8c7356a476",
+      "sha256": "6db9e8fb86ba967e083342982d77a5ef92add601b8abccd850923c068197893f"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/blinky.c",
+      "git_blob": "2db65a628d664e9aea65b21023286f0dd3261f23",
+      "sha256": "ca4bb2f11cb5f47602f608a7b11cc8753ed11f4f0fc9876523950955e2b5df07"
+    },
+    {
+      "path": "ble_app_uart_c/Src/platform/bsp.c",
+      "git_blob": "d5d61fc1a75d0ec8cd4feb61dd9dc17b89890393",
+      "sha256": "61d630d2563cd219c708ddb6e615bdecb3b64521d333101a24cf5f615516ea6c"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/cat1svr.c",
+      "git_blob": "d44639359dd2c989ce200311f4cfa991f3c2bf16",
+      "sha256": "462471a312dca17c679f82906c2675a2344a7d3272ae28c8a07b1bc645a73ac5"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/cJSON-1.7.19/cJSON.c",
+      "git_blob": "6e4fb0dd369cd905923da515be87ab06db6c1ee0",
+      "sha256": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/cli.c",
+      "git_blob": "00fc83710b963c22d67536a8389f2fcdbb19831b",
+      "sha256": "9ab54f8c6b6d2872ebc84e2bc844e79f2c7b57cc20401aa97105f4ec418894a5"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/da221.c",
+      "git_blob": "6462e6a8ab569c1bae60f0480d99ae99f1532114",
+      "sha256": "095c8e51e9dcda807e38fd65acfce9caa145ab53e7200179a20a5a2939872c82"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/da221_config.c",
+      "git_blob": "7270695401fdd920a939c4e7793bf103724327ec",
+      "sha256": "e1c2c163d58c41a6980a9b570350f238bc5e9befa83fd7ac1ac77ccf3e60c42a"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/epaper_depg0150.c",
+      "git_blob": "f36729c3b3ecac342ff43cf2a653102b2e764467",
+      "sha256": "2a6b75d9fc758a6790d5a90a1643979633ab4a48469656dac256c5c1d1cdd5a9"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/epaper_depg0150_logo_yp01.c",
+      "git_blob": "25990fe5c91ed988fa0e273f6bf69b825556a0d5",
+      "sha256": "7c25d3160b3f097d031d8575eed488dd5d39d0fba7da271e79f01cdb553544c4"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/epaper_home.c",
+      "git_blob": "9b48d1440d699d8a9bc3612027562ea2de582bc1",
+      "sha256": "d1ba59364a29e945e5f225448fa569d19f27b6f319195e8ca418b496f3f947b6"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/epaper_lvgl.c",
+      "git_blob": "2f1ac7ec8ea0fe5f4487d555d1a6968a016db745",
+      "sha256": "546cdbb50ebab06d5e7bf323ef03f56034d5573c13363495351e647d55dd1960"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gpio_test.c",
+      "git_blob": "4e853fb2f15e0806b57509b217c832c030c609d2",
+      "sha256": "56458855dfa38164d6ec8399117c43aec39f0c89bd49ad47a9d4f1404b834c47"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gsensor_probe.c",
+      "git_blob": "7c1484c22f52705021f9ecb278bf87bcd3830191",
+      "sha256": "c11cc3ae1260269b56b8c6330a9f9fc37e12d893cc010d95dd59b4e0206b1507"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/location_servise.c",
+      "git_blob": "553b777a9c933ef56e7fb0e5394ec33a802dc485",
+      "sha256": "e962a838b223aa2e5ef0169910cb30895d2e0318b96155b0b084342627299987"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/log_cmd.c",
+      "git_blob": "fbb2960077425c45633b60f20c6948ccc301e16e",
+      "sha256": "36b99477624fba6306c2cb2b2725b6cc164ba5f86c0efe3e8ed26dbe74e127b2"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/main.c",
+      "git_blob": "cea04b7784ac52228fa746806745b9b103a0beab",
+      "sha256": "9dc64f93f117537a27c2cf15c919fc3383afab563674b95fdaceacbcbaea83ce"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/qpc_7.3.4/qpc/src/qf/qep_hsm.c",
+      "git_blob": "01a6b718d84f8243b055ea65452665b87def057f",
+      "sha256": "98f80294ac5800554f77f4c4b5d7973966bb8a703245c6e7bf5b198aafa93606"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/qpc_7.3.4/qpc/src/qf/qep_msm.c",
+      "git_blob": "90b17e1e4c8acd6ce9c591c45ad46ca669effef3",
+      "sha256": "0205e8d03af4c43b4bef675542a7d63e17e8d79377e87f5cedd9368c4c154d9f"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/qpc_7.3.4/qpc/src/qf/qf_act.c",
+      "git_blob": "a04c0cd664c1c40b6381416c102fff4c1aa0b6cc",
+      "sha256": "69d3306993338176e20c8b191dea16fa839a02dc1e6fadcf6d61219b5bbbd3f8"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/qpc_7.3.4/qpc/src/qf/qf_actq.c",
+      "git_blob": "26fca88194655f76d460d3c0f2723dc7dc1c90d1",
+      "sha256": "f12d1ef398370c4717f48ddd093762fa37e4063f5169ea2b0901910f0bc12c6f"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/qpc_7.3.4/qpc/src/qf/qf_defer.c",
+      "git_blob": "118598d0db2b86adb2920880587d62aaa618fde8",
+      "sha256": "30edf4266920154dbf0bb48e2d04a092e8292963a9b7562982401174d789e042"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/qpc_7.3.4/qpc/src/qf/qf_dyn.c",
+      "git_blob": "0d5f3785cd14a94f4c16ca0a4e56f24d959f8e24",
+      "sha256": "0b3e652be1191815752e84d8d2aaee72c6d820a3fe43554533802755a82129d2"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/qpc_7.3.4/qpc/src/qf/qf_mem.c",
+      "git_blob": "0d0209656487a336710b91664ddb4c534c6104b0",
+      "sha256": "6488c811bba4ec6d060021e5c2fe7564c2fc17e4f896414279f1c88215e265c5"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/qpc_7.3.4/qpc/src/qf/qf_ps.c",
+      "git_blob": "294b4a5146c0ca98a90d00d14f51804350bc2c5e",
+      "sha256": "9f74abc70ff885f3e1247d295503c738142b9af32131d7cf5b8d4a90f85a161d"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/qpc_7.3.4/qpc/src/qf/qf_qact.c",
+      "git_blob": "6664bb0f7de66cd656040434374067bf073c20a7",
+      "sha256": "c2d8d968f48f8e4f3f6ef249b63e4c2cb4b36023c29e305ebbf67acf7557e353"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/qpc_7.3.4/qpc/src/qf/qf_qeq.c",
+      "git_blob": "0697e7ce1b628e75e11fbed57503ca9058cd82f6",
+      "sha256": "4191692143da06782f4bca8220427b193f516da0315cfb06c2490e196c3573a2"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/qpc_7.3.4/qpc/src/qf/qf_qmact.c",
+      "git_blob": "41b8f3e6b48f7958ed40086f60cd50085920603f",
+      "sha256": "edccf3edf82f8c17b4982b3dbdb27a64c486901db59a894959240dc8af31eba2"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/qpc_7.3.4/qpc/src/qf/qf_time.c",
+      "git_blob": "7688c4cbadd99abf44cb31ba523d36e715bb5139",
+      "sha256": "b09e81afca0ea37913b7e56075e8a14fb3fcd3008ad5a80d8cd190497fb5b14a"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/qpc_7.3.4/qpc/src/qv/qv.c",
+      "git_blob": "a82557db3c8c4cab3c96e2315beda29d6972af1a",
+      "sha256": "707ead4affc2e26b1e7034323bc1c2e6782f71ef6c989af0170a712ced8b5e1a"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/sensor.c",
+      "git_blob": "7e2489a093c8f4beba1ef7d302bc5d61081e9f84",
+      "sha256": "236174e21d2ed0e05e20ca7a0b662a517d9c1ce9a50721bbc4cf07a95ee13ede"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/slre-1.3/slre.c",
+      "git_blob": "a2312a26331cfb174fd077603ec83ea914b99371",
+      "sha256": "8b5da0a87d89d33d5246521e799df42a0c47ef72420daf638833f23a2cbfbe6a"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/transport_scheduler.c",
+      "git_blob": "5c3126b462d0c598574e1023c87ee414446d0398",
+      "sha256": "9ef02480762fcb035ebed1ec94737e9e3b455d867fb78cfbe5b3205874dc3665"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/user_app.c",
+      "git_blob": "a9c4706db77a68ecdf9085abef8d1a52db5a960d",
+      "sha256": "cafc879697015e1b5b72fe54680687f9d1922a5abf0ffd347b138a3800c93e58"
+    },
+    {
+      "path": "ble_app_uart_c/Src/platform/user_periph_setup.c",
+      "git_blob": "fbf60f19576968834191a98b4c1e89ebf470fe46",
+      "sha256": "ef3af064919409b4adbba533c77aa03f1c40dceae98a57ba7c729455189d5a08"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/yp001_battery.c",
+      "git_blob": "854517a3d4e123f63427c2a0ef344ee77bb868f6",
+      "sha256": "1e804c6000d6b6647fc60985c1251242aa727c7f800d993c1844e49135cac021"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/business/yp001_business.c",
+      "git_blob": "83928f0fd1867581e9d66e44933e61ed4fe289c2",
+      "sha256": "9e9bd095018ff1e8ba3913640f38d2fcf30fb5ae5b77adde5c88a27b6f48cbbd"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/business/yp_name_glyphs.c",
+      "git_blob": "0b12e6ec2bad9aca4133d6273be21b44340ed9e9",
+      "sha256": "b1ace1b1e4398ad651d3741b2222d2c4ad202e5b9316678bd60d120662cd61f5"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/charger/yp001_charger.c",
+      "git_blob": "6d268c3fa8a78bd43b9bcf5d86512c62214b46d3",
+      "sha256": "6c49beafe07654f6cbf022887eaf0050bc671dceffd81b601b6ccd57b5c1234b"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/charger/yp001_charger_cli.c",
+      "git_blob": "d744d023336b656705ae2f39db610c16bd5b1664",
+      "sha256": "72ad41af8f613b2b5a0a458b7b144147e5f214c1a99e909b0920f723fb10e48f"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/factory/yp001_factory_ble.c",
+      "git_blob": "004d2334fa2c92a75b204783274525b34f329eee",
+      "sha256": "924a0617abea2b00119bb3ac70274302554fe1d8524f3b876b893eb1b20e68e1"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/ota/yp001_ota.c",
+      "git_blob": "239bee1e72b28d0f91666913115be87945bfc2bd",
+      "sha256": "4296af12490924513486e310a77838cf4fd4c580b49ac5ab3eae1ce4a30badb8"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/ota/yp001_ota_boot.c",
+      "git_blob": "e8be8f4777ed7e511ea13de4a73e0375754fd5ec",
+      "sha256": "7420d281eea2b20f481bc1543876ed9e2ec795b36d6cb6bec1bfce02e142da59"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/ota/yp001_ota_wire.c",
+      "git_blob": "cbbf9d647338353bca4532cb53dd1e569f1b8459",
+      "sha256": "5c02a22b134feaf8934cc95f708efc733b8dc2753164bea02b391349a9e8301e"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/ota/yp001_ota_receive.c",
+      "git_blob": "2334d7f5f6cf55e4d1abb0243d3ae83a75903fa2",
+      "sha256": "ce3b6d6d9258b132e0be0173183d448f08d5778c73283545d8a98f493eb7711b"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/ota/yp001_ota_app_crypto.c",
+      "git_blob": "8db2bbb9ac23338d59850d1dc28457d6158bcd21",
+      "sha256": "6c038dd44625a57c0afce4ad37cabe860a99dbc461ed0ea38db798d94db9f7b3"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/ota/yp001_ota_project_verify.c",
+      "git_blob": "616b362248d30a5ab165ef2a7db24842856c2e4f",
+      "sha256": "cdd075eee98d14e31c9ed7ee4047ce709c1390a17de05a3c61f83a68aee38f23"
+    },
+    {
+      "path": "SDK/components/libraries/app_bootloader/sign_verify/src/rsa.c",
+      "git_blob": "2601aa581808768b01dfc0f9bcbc9544cd9face8",
+      "sha256": "c020cd75132f87d07a88f4555cd13cca2075213ac09bbfc974d4786dbc52d8ce"
+    },
+    {
+      "path": "SDK/components/libraries/app_bootloader/sign_verify/src/pkc.c",
+      "git_blob": "2a206413bb0e3920f07b40b78e9930e0280e66f3",
+      "sha256": "6682febd354fda163ac535ab9019280afd6d19e770d43f570343b46bfa48e368"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/ota/yp001_ota_port.c",
+      "git_blob": "295bf068305e7185a9f843c3196d6a4b0d46230a",
+      "sha256": "1e1c6291f3433a30dd4eba2abbfca803b8ebc2d249d0e9a4f49d3f1be971ae0a"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/yp001_psram_mem.c",
+      "git_blob": "784ae411e9e2f32ae897847c10ad21db7eb01464",
+      "sha256": "7ec8f8c640d465a6cb7c336eb8039b254745182932233d5f18064764bbcf6c7a"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/yp001_scan_sched.c",
+      "git_blob": "fc6e3757a2e7cd4bbcf17d73731ace1f226471b2",
+      "sha256": "ea786e94809d91ac4a38f2b993d805e1b1711c607fb1c44c8b72232f07057be7"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/core/lv_disp.c",
+      "git_blob": "dbbc8d7d9ac5d11a5308f3c4ed0e4aa000e63343",
+      "sha256": "73e08b5ba4345fbe578a0a3b580cc11fe306736e89cec07b410c91787e64db18"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/core/lv_event.c",
+      "git_blob": "9ef7c785fbc29c2a7e98b4d02183e182787f54ea",
+      "sha256": "ef94230c787477581b6a6707957de69cc3db67f82d5682f04f052ee9a2b44c05"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/core/lv_group.c",
+      "git_blob": "1f4168b3787a2443e2713d449eda218d4ff32e53",
+      "sha256": "e185cf0b9d28c1add6237f3e55be0d7354757c8c1f9d418c6c6d647740ddb0e7"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/core/lv_indev.c",
+      "git_blob": "b11cbe751effb17bddadc094702e107ce048eef1",
+      "sha256": "f10e442c818dd46cc67f866c6c7161817641e821e6688d57379f3390071508d2"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/core/lv_indev_scroll.c",
+      "git_blob": "ee952cfd2652e8967fe4e6c757c19513f6f69281",
+      "sha256": "d07eb4b1ab5375c91b6f0c415eef281b5d088d40bfd4ff343a4e241d3f378e37"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/core/lv_obj.c",
+      "git_blob": "9ab4b962c927bfda6afbf9287225186c6b3ff31f",
+      "sha256": "5fc85b467e288271a347b1fa0cd472f0850480df45f906e6c5308ad7efa38b7c"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/core/lv_obj_class.c",
+      "git_blob": "fd7b52185222c9d7884a3457b7a42c0aeaf9ec39",
+      "sha256": "bef31300d71d8f5681eb886a3e55230c2ec9cc0e6c46578908bf914d5798230d"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/core/lv_obj_draw.c",
+      "git_blob": "5cc76567ee0ff5671abc619ab11fe3a7787f0baa",
+      "sha256": "0897b39108477791963a91c1150df6de165963f3b36db634a382887c8052aaa7"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/core/lv_obj_pos.c",
+      "git_blob": "3c2f786334bab2050a26a8a19baf1a31227c243d",
+      "sha256": "df83c51e773964751ea566fb4330422db96a2fc602ade9ed1b5c8ea78466c7cb"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/core/lv_obj_scroll.c",
+      "git_blob": "63e02deec4a78077a02b4fcbde8b13bdd6e4a37b",
+      "sha256": "97b4cce8b17b170d8ff05187db83fe1f4630d1871ee0ef9091b261e1aab27577"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/core/lv_obj_style.c",
+      "git_blob": "5de4ee09a860882e0b0e57b02af29567ae8031a6",
+      "sha256": "0ebc8f901fff23348e0194d4aa208fdc1250da2db82fb7955f3d0fa9dc219fff"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/core/lv_obj_style_gen.c",
+      "git_blob": "70e8c714b29e5e71fdff14d37f23fb824b5d0e3e",
+      "sha256": "a4cd537c2b4cc1ee0f4ea803d4bc7212da6c1a50a10d0e3462ee4cb53619f5b7"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/core/lv_obj_tree.c",
+      "git_blob": "c447ea2e39aff88df46324abe78759e0a7b7e13a",
+      "sha256": "9a711d332a28a603faa481d449601e09cc5a12d1140e04fbb1260be90d636666"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/core/lv_refr.c",
+      "git_blob": "8234dd92dad9b5b73038e7757c1958aa91de9138",
+      "sha256": "c612356c438a513c397f748ba52118a6a295a4598a5ad334855d96d2481225f0"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/core/lv_theme.c",
+      "git_blob": "a64b4031085c167cd40f4f1854264a25e7a024f9",
+      "sha256": "8730fc37386e5d4675eb434a68d8f6e12f7270cb664d7c3a683ef7226627f81c"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/arm2d/lv_gpu_arm2d.c",
+      "git_blob": "6914bab8ff2be94401b43ed1ee5b2e80e31d223c",
+      "sha256": "ef1490f951db5afb46f0ea6f2532a8d0256099018acf59848ce532882bf09fbb"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/lv_draw.c",
+      "git_blob": "1578c02370bc71f4bb0fb6e67d95c375adf313a8",
+      "sha256": "38d90289b9ae2fb742ffc3814732184384450b5bda1c7681baee6a6c80f77e26"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/lv_draw_arc.c",
+      "git_blob": "ed629e318fadf457f0ed4434a07867ca1e60e1b5",
+      "sha256": "25979827ef75b9063e60ee7dac59c4d51ff3b2bb43f8b3b44cf51d874cf095cc"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/lv_draw_img.c",
+      "git_blob": "f7fc224b8ab7b9a2ac2b51d73756baa2410c2389",
+      "sha256": "dacd774761189e668e2a97ff8ab95305ded030ed555b08e246a38cb6e8d3a7ff"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/lv_draw_label.c",
+      "git_blob": "fdb7d847b0cc8831ab3b22e7ec59166a188c32a6",
+      "sha256": "2336984248a7ce766af45ae6ea5226f237fce1f178593a1c45cd287125af0884"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/lv_draw_layer.c",
+      "git_blob": "e206a17822a3eba0f46c81bbeb9cbdfa69dcdeb3",
+      "sha256": "42d98ee1c152d7202e2ea5e9790ae70c55cd50c9a432269669c78cfc4c842e78"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/lv_draw_line.c",
+      "git_blob": "1f4f55522b55c3e7d7ba6562730675ce42f101d5",
+      "sha256": "5fab56f18bbc2f84b4557cb13073f1268552ff95b5bc8f79c9a43bd72d640384"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/lv_draw_mask.c",
+      "git_blob": "6f4a83891372e23716dbd1c766421198b3b78d51",
+      "sha256": "bbc0dfa7ba65e93b37f5bebceae2841d7de69e24b319bc3f779bf45bc97534bd"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/lv_draw_rect.c",
+      "git_blob": "77fa74701c5bf906facf7fff1939684db5e571c4",
+      "sha256": "cc1bc0cb97e791f6687dc40f60dafa3db1ae7fef54658aa72216807e98e3ca2a"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/lv_draw_transform.c",
+      "git_blob": "4d899d3151a726dff88b35ecdcd3597f59e1004f",
+      "sha256": "a81b16200cd8e0aa365c9b950d4e1ae977cb164a4d13d0cb313e001d8a5bd8a1"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/lv_draw_triangle.c",
+      "git_blob": "e7fdf396e7c1eaa7cebd5b3e32e7dffda7f75126",
+      "sha256": "ba9c73e977de3ce95cc5850533b7d31f27df31dac11ed319d549add62d66afb5"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/lv_img_buf.c",
+      "git_blob": "13c7e999b8d17598659884f8649e11f594da929a",
+      "sha256": "6fa7aeec081515b23655f8a0993bdd88257c3ae184e023d7de3aa28daed8721d"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/lv_img_cache.c",
+      "git_blob": "04e55d95553acdd3ee6bd94ef59df8bfe68da261",
+      "sha256": "d4f7379a129e4e53fb5fc65b7920c5a0c7267e092c35b7504fd5dcde90cce421"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/lv_img_decoder.c",
+      "git_blob": "525257738b337ced5903e89baa1913d4cc6c8a6b",
+      "sha256": "60e84f5f40c3d31a41191f08eefa84a0ae5be433d85dc3d15b68a9c2185c5837"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/nxp/lv_gpu_nxp.c",
+      "git_blob": "ecda2aa0c9fd3599fcd0edae4cd3ed341d7feab6",
+      "sha256": "f70391b3fe74835be9b6208dfe259e70c0e49127c5af4096ddcb53f97daf38a8"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/nxp/pxp/lv_draw_pxp_blend.c",
+      "git_blob": "7b35d75f70592ea36a90c2ca03f4ea47d015ae12",
+      "sha256": "84c90ff5a8de92de60bc09acdb637ea0e135b22da6b8439ffa19e9299cf2d7fe"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/nxp/pxp/lv_gpu_nxp_pxp.c",
+      "git_blob": "067b077d3e6fa5c98aa66b84ed9b7c6d1bacb20f",
+      "sha256": "b033b27243a044a45339985ce804d766b5ae46303e08c28ca2e66cf87dca6e21"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/nxp/pxp/lv_gpu_nxp_pxp_osa.c",
+      "git_blob": "1d874aa124ba948433a26bcdf5448abfb4e1a3c4",
+      "sha256": "023e93c25da6e1413f1851a5092fcb50b1cdefa2adf69663fc72268745fbda1e"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/nxp/vglite/lv_draw_vglite_arc.c",
+      "git_blob": "1c7402a4924b69e3ce3181c6d7574fdfe2738c1f",
+      "sha256": "c3ffbf5f2d42b5098779776b1ae39ad907e4af5b35f3a01ac1d2bfa0dd8a26d9"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/nxp/vglite/lv_draw_vglite_blend.c",
+      "git_blob": "4a1dcde99d49461a6271dd4a7d5b2d7ea772d2a3",
+      "sha256": "d679bfc193e96eb9536a988b0f0bc2021b247637e1228c2b80004fd4eecc5c26"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/nxp/vglite/lv_draw_vglite_rect.c",
+      "git_blob": "9a2ec4e8c9df0eb0298a65f46bdad714f189d855",
+      "sha256": "819f02412778d27f1cf30ff13e94d9703b39070a3fe07501a91964f2bcc4057b"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/nxp/vglite/lv_gpu_nxp_vglite.c",
+      "git_blob": "8e6338ef9dd11242716373cfd4d37979be80c664",
+      "sha256": "84e645d73c926efad1bb070e60aa734949cfcb664f2ce4ab64da9e1b13c7754f"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sdl/lv_draw_sdl.c",
+      "git_blob": "eb8c8686f230f76826f14a7a6e8e6d1c71730a43",
+      "sha256": "c969434a58813e6f833397166d1c99f322db05074625b5410ddf46e9c45b181a"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sdl/lv_draw_sdl_arc.c",
+      "git_blob": "9d7ac3a82246f37f1c3c2f5d1f17e2b378c72e8f",
+      "sha256": "50e4238a66623ad043ed264132547fc8c620acf2f889efc6f9779d7db98ec9bc"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sdl/lv_draw_sdl_bg.c",
+      "git_blob": "c162e64902bdbe26752045cda5af847863a5b748",
+      "sha256": "ce8c5ae1b5d622793ba1de02843d8b1a476717402ea4d453ffec30e3a7d2b4a3"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sdl/lv_draw_sdl_composite.c",
+      "git_blob": "8542ac79ed6f2c374a13353cb9d6b0d1996ec5a0",
+      "sha256": "2829764be31593e734441337607d5380b671fdc701146818472d97ee8041506f"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sdl/lv_draw_sdl_img.c",
+      "git_blob": "00190f39d0c5919440002af41ccf9a8d23579534",
+      "sha256": "3a5ec1ac1e1cfa3a9adbe01fce501addc6d8dd526d2ca9470e955a40f83bcbed"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sdl/lv_draw_sdl_label.c",
+      "git_blob": "00c9201ca4ffc768f26522ab78d10de11cc139bc",
+      "sha256": "78ce7b180a6f499600c3289a8ee8cca2a405b00251ab1548b643ba489393168e"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sdl/lv_draw_sdl_layer.c",
+      "git_blob": "02f58da17390b0b0fda111489faeb4ea5063dcec",
+      "sha256": "380c375c6fd3cf7f3186891bd956bf4f4817883a6d7dcd77e2bd1b24635999b6"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sdl/lv_draw_sdl_line.c",
+      "git_blob": "d45c4ea191cc48d269acf6e2ff4daf9214be2430",
+      "sha256": "f3964b9f59c4d4f9d30f0071a4fcd350fa32a154f56700985acd3a6fa3af4daa"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sdl/lv_draw_sdl_mask.c",
+      "git_blob": "807da25972d43e0f8347edb46e4f50edee74c558",
+      "sha256": "7e3df7af90f465a7223b8cb1656efbb836cb8875a6edb554ccc36ba625cabb1b"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sdl/lv_draw_sdl_polygon.c",
+      "git_blob": "da2f892393fcbb3882699c6fade832052e9e5d5b",
+      "sha256": "01e92a4b1d5f7153c3ea35b2d5658422ae7993027e3238704bdb4c2c64204740"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sdl/lv_draw_sdl_rect.c",
+      "git_blob": "e990e8318817c8a1c6a2af5d5ba6f8e4da60fe01",
+      "sha256": "01f2c904a08839ee6db696de2c8b2ec8348fa129748c44b290baec35bec3ec2a"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sdl/lv_draw_sdl_stack_blur.c",
+      "git_blob": "a3abb96daa6e2176b130114d14d8fc36369cb85b",
+      "sha256": "b37274ee5ff539fc4440c45e943e6405e8ad3b58a3624b4ef5c561e6c898499e"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sdl/lv_draw_sdl_texture_cache.c",
+      "git_blob": "78e6e754e8abe59e6146086d2cf34438efd1f989",
+      "sha256": "7dd1dae651ada630f46b40bef3a9ebd05b5e15c49907ad58a70558c873d1f783"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sdl/lv_draw_sdl_utils.c",
+      "git_blob": "6f72468087e24e41262b97ebba269e3a52393a53",
+      "sha256": "e649e08f7c298cca9d4cf74431dd3070671241ddacd8559ccb29250f2c180c32"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/stm32_dma2d/lv_gpu_stm32_dma2d.c",
+      "git_blob": "2d60b2363d8c35f6cf8ac8bb50d8b5d2f3508dd9",
+      "sha256": "58e4bc13ded9feeced54aa48f991e031f552d3154672785a2af0b69c41d136d6"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sw/lv_draw_sw.c",
+      "git_blob": "a1edeb1fa72957cb36e6c1aa74bf1381db28cc17",
+      "sha256": "1659bf78a254c8f88ec91a3ffef04ab5c3aa2e7a024f2020ab95ca00b5f07354"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sw/lv_draw_sw_arc.c",
+      "git_blob": "7c72a5369dbdf79514527c42fbcee56c5115cf49",
+      "sha256": "18c926d37ed6748b1ceb02dfb123d99b146f3ac742c959552be8fd69458d5194"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sw/lv_draw_sw_blend.c",
+      "git_blob": "778d7d107fdbf7a8d809be19917beaa80e0abe3d",
+      "sha256": "031ea3210e661eefc27d6cf546ec93a9b22648c6778cf5abeeaf2cad67163fb3"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sw/lv_draw_sw_dither.c",
+      "git_blob": "78b72e88a888113274b7e4129e5aa1cda2dd8e90",
+      "sha256": "602978b10b9198ac3c1efb3be5ed7829864cfe686bc9ed6402d10dabae800a0a"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sw/lv_draw_sw_gradient.c",
+      "git_blob": "4a4fd2bb5f3914dba2cea361e551301004a722e7",
+      "sha256": "616f1dbe14cd3fa4845aac3e95f09cb9c0989097c2d2cf240132261259166d0c"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sw/lv_draw_sw_img.c",
+      "git_blob": "a68a985f19ce5005aec4eb493157d783aaa2f83d",
+      "sha256": "2e286e5bcb0c52a30ea73a0f9f1eb75ce05a6302d0545d9103485c537301f5dd"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sw/lv_draw_sw_layer.c",
+      "git_blob": "f34f140b867436c8e5314e9d01e1ec7166e0cfb2",
+      "sha256": "24e1c0f8619ed2ace1c7ed4d2d7bb1aad017d5e50542dba8acf9054c5bf8c6d1"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sw/lv_draw_sw_letter.c",
+      "git_blob": "55c8c1b64ace8e5a56a58b0701471a47388c994c",
+      "sha256": "fe6bc01e4d40696d4f62712b4729a850d42c0eb968c061c637f7d0cbef81313e"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sw/lv_draw_sw_line.c",
+      "git_blob": "5e88d367774b7d32732b6f7419d874972ed3945f",
+      "sha256": "ad5e166bd02cb63ce729bfbf05569e023b44349f4bb3e790e1714434b2fd2ee1"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sw/lv_draw_sw_polygon.c",
+      "git_blob": "4e49eb68301622ecd4b3754c94934e3992e792dd",
+      "sha256": "089546d809550e9d19c0fdddd9d1736ad77f6af05f8c1a467aab58171e216a7a"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sw/lv_draw_sw_rect.c",
+      "git_blob": "633e36d7471ce7f66dceb42ab1b58eb5cf1ccdf3",
+      "sha256": "2d320918126c0d7eb59de50988dc339846356d94690cb094c5a4ff401cbf9534"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/sw/lv_draw_sw_transform.c",
+      "git_blob": "fa2fb9062b4d58514ea460585c0d01a3d18d33a5",
+      "sha256": "de9b648a1752fa916994e457076956c2c7ea9100bfec2d002f28aa7a08fc6a38"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/draw/swm341_dma2d/lv_gpu_swm341_dma2d.c",
+      "git_blob": "b52ea4b37973e536d890f6b7b80fe9397a6a202a",
+      "sha256": "4b3e93cdbf44086c7c747aeaf7f0c36a8001f2e544e499159936615beb82c7e0"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/layouts/flex/lv_flex.c",
+      "git_blob": "1192dafd3652d293a4b08a8e3f8a66f2e4199898",
+      "sha256": "ddbc99818fb8e300c6644ecff8620c2241d5b4543ea232c1a41789b9b4d2f0fa"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/layouts/grid/lv_grid.c",
+      "git_blob": "4d688b242a50767f5a6e152db0f2ca4cbc613c90",
+      "sha256": "de01547f12874a1f1385c01b2debe37ad7a0c6a95c23152dfb7ab7b4c6889580"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/libs/bmp/lv_bmp.c",
+      "git_blob": "bd3756a1603eb9a7cb71e3d007a7ca0661421bcd",
+      "sha256": "f331c85ac8e8943ce7d1eaa043a9dfd6624b8b8462aecbaed03a2b8b5ff25d6f"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/libs/ffmpeg/lv_ffmpeg.c",
+      "git_blob": "bf4724301f665ecfb12bac3250520fdee5588cd1",
+      "sha256": "cb765e94a4e9f9436fa078d06c711a766fdbaa91beb94432d50b634137f39045"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/libs/freetype/lv_freetype.c",
+      "git_blob": "545e0969944de31994f166c9f09190a08d126a83",
+      "sha256": "d033ec9bd5dc8ad5baf567dff03f8c453ba6fc5695ed92d482b8c183ab1f8f59"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/libs/fsdrv/lv_fs_fatfs.c",
+      "git_blob": "7a367a320c4b4e2015d7cecec4b937d097417e42",
+      "sha256": "e604005d69e7815c37f9da12ed009db1e0bbfd03b5ca78175afdba2c5eaf8baa"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/libs/fsdrv/lv_fs_posix.c",
+      "git_blob": "d6c28b23dc010995f93be0f9dff0fe85374670fd",
+      "sha256": "d5f365451a09904268123a41ece0fb7179891d9b84a93284beae35c932f9a9d1"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/libs/fsdrv/lv_fs_stdio.c",
+      "git_blob": "ff93a598a18f894067c4553149a40b9f1a1de1b0",
+      "sha256": "0b9216f56dc4401fa4e97e300a5d23e9033ce39840bed954643759cecbb0e85f"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/libs/fsdrv/lv_fs_win32.c",
+      "git_blob": "2fa046f0851d3b71d326c93415b14d6127220d7a",
+      "sha256": "fcc026bce6eb5d4b601a2d62358b5d723994709e06930b1734f86921f205fcb9"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/libs/gif/gifdec.c",
+      "git_blob": "4adc72168404ab0db239057f9437bc18b45253e2",
+      "sha256": "7b1b31d5a9a9c4491e2000704208476cb4130d81db826fedd6f70dd904bd0392"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/libs/gif/lv_gif.c",
+      "git_blob": "5a7c3ca793df80e885f290d624c5e6a07e46b6fe",
+      "sha256": "ad153cc6229fe95baa3e1c23c5e593e3442d782611c46aa777e195dba171f605"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/libs/png/lodepng.c",
+      "git_blob": "2d1c6b9bf5bf2cc6adc30707d123e0885292befe",
+      "sha256": "4933f14fbd133357ab4dcb4f324409bd1fdc6fc9ca40bedfd1f95b1c6499b96c"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/libs/png/lv_png.c",
+      "git_blob": "e0316063fc0706f25f46825599dd4e5cda308892",
+      "sha256": "cc34075047823e5f419372e08d1954b4960c23cfc013971e95ea91e509d98e3e"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/libs/qrcode/qrcodegen.c",
+      "git_blob": "75d2f954752c921bf3548bc3b8954e476edc9a05",
+      "sha256": "a4bd53d6264a070f357116f00157e47a8aabb3d858f0b7d8cfbdbd9fb09caf70"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/libs/qrcode/lv_qrcode.c",
+      "git_blob": "c0a94cd08b230befb3212754834a36b4c67c2992",
+      "sha256": "49f30ae266e53bf79fa1f89820b30017f7ce5d20dcb04c9feb5fa7d6a85b01fb"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/libs/rlottie/lv_rlottie.c",
+      "git_blob": "cc96f8cc2fbe4c5272d76fd9c06f4342e40d4b64",
+      "sha256": "c6f317050360b31c2654a24f94ee3b277664b181853e777f5ad6a809064a7cd8"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/libs/sjpg/lv_sjpg.c",
+      "git_blob": "246ac3c8152f9d7cdc39e89ab26f133685621268",
+      "sha256": "c2c643886c9aa2ebbd9b345bfdbb21fa71ba8c19990792db87ef7e837aa18937"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/libs/sjpg/tjpgd.c",
+      "git_blob": "96ac084f20acf4ebcdbcb79feeb76e6433c21bca",
+      "sha256": "e70fa6471de2482c694465b919c8250042bc441203d47fab8086741e21418fbf"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/lv_extra.c",
+      "git_blob": "3fe617be90f030913d03b1fbef9e6bc3428dcaad",
+      "sha256": "0cf81157581f14e2164a3a64a518e8494b2a2e60a9af8e37e856f8d575ddabb6"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/others/fragment/lv_fragment.c",
+      "git_blob": "35fc92bff1b4cab1dd0bfbb6ea9d0825eb71277c",
+      "sha256": "ba254d5ccd8ef7413528bd612e787404cb1ae85ed786930beaed26ee6fd5ca0b"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/others/fragment/lv_fragment_manager.c",
+      "git_blob": "ee7f2f494c6f86dc68b7d4deda22b48d521ac9bb",
+      "sha256": "9ab9ce678ae1aa0741ba58c9002caca54c31f8e6a716c0641dbc2234045250bf"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/others/gridnav/lv_gridnav.c",
+      "git_blob": "b6176ebcc8efcad40fde0da0695f02fe8184fc9b",
+      "sha256": "5ab17efc47a486095ba862d2aa316637696f0364d9ff92b9f323fad21114ec08"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/others/ime/lv_ime_pinyin.c",
+      "git_blob": "8702446abd38d5815c137788bc01dbf409384a9f",
+      "sha256": "c4ade0c1ad1409b7183c906dc7dee65a37692f109333b4b59d0d815a58f78c04"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/others/imgfont/lv_imgfont.c",
+      "git_blob": "a7a9a890477d45a656d610b320386a4db272a487",
+      "sha256": "d384cf7dfb228cc3b7b3dd037e93593927e63ba3ccaebfe6f5d1c65aa45bcfc0"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/others/monkey/lv_monkey.c",
+      "git_blob": "77ce24e8da04158102b3be751bf465c7d4c54e18",
+      "sha256": "ca9203e956ecbba69cd171a540f877af62e3fcdddd96e21e9713872f382ae8e3"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/others/msg/lv_msg.c",
+      "git_blob": "34d55919d27489cadb552a536fc95b3dd88d4b8d",
+      "sha256": "da9e8d9e6a24f82466afa6d9dca0edbeb7bc86f34961195ca695622efac4158a"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/others/snapshot/lv_snapshot.c",
+      "git_blob": "1d60c8940f9d6706104e65d420c4be52930e7d87",
+      "sha256": "493ead68cf7cde0e0cb77c9056f19507206d8a646d53ea7051354a2eb34dd62b"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/themes/basic/lv_theme_basic.c",
+      "git_blob": "63ee55c93634f9057b4196cf5b8b0ca00727c7c3",
+      "sha256": "c764444d5c36e94653d321c55793c78e12a1873a804cde0b7da6e3b40ceb2cae"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/themes/default/lv_theme_default.c",
+      "git_blob": "dbd9f623b448dcdcdc498e7af45c12c5bc89365d",
+      "sha256": "2bb657dcbc005c7ffb2acebed108a1397cf86f5170b07e74a9871bcf7a31b055"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/themes/mono/lv_theme_mono.c",
+      "git_blob": "310a7b2369396ee570943ac4dc7aec46c0efddf6",
+      "sha256": "654f4285164a05b0b4bd9cf92783ad50764bdf4c3642de488f41a3c86c0ce995"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/themes/simplify/lv_theme_simplify.c",
+      "git_blob": "87d2a351a69af3fe3ce0b87b6d062243c8eb5a42",
+      "sha256": "53e9729a9804e2baf4824ee6867d8c9208eb8d4eb50efa3deeaca4c7ecc3369c"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/animimg/lv_animimg.c",
+      "git_blob": "d6995d376d5c156627b601f7030919d942f534df",
+      "sha256": "615002e259b3c02a62098ed1c520199b0bff7dde27caec8ce62ace6c47a1fdff"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/calendar/lv_calendar.c",
+      "git_blob": "76419efadebbb6f5af35a229fc9414b21eeaedde",
+      "sha256": "f819379e9849b0f7656ed145c17d14ff536e386085fb4182f63ce4a78806b828"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/calendar/lv_calendar_header_arrow.c",
+      "git_blob": "91dda7748382dd8eab7f564804b615b05cbbf8db",
+      "sha256": "22a58cdc05b7a80a435b6c98cc8aa7fa1f1c52809ffd0feb8feaf459e7549221"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/calendar/lv_calendar_header_dropdown.c",
+      "git_blob": "b876faa725b89a2a493d434fd82471acef16709d",
+      "sha256": "d694e5f20b296baaa26838e2a665181d09e197394bbaf1666d3efab3ec7200f4"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/chart/lv_chart.c",
+      "git_blob": "794000d53377e017d6e93b1cbf7272d9fcb7c365",
+      "sha256": "ff305eef8272723e1effea06c5b7d48626c5822c12e5bbaeeec08e14e6bb520c"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/colorwheel/lv_colorwheel.c",
+      "git_blob": "6ad58a0982abe8f65926c71f5c1427a0b1b76ddc",
+      "sha256": "5b857744aa3bbb8d4298c38b5fed4afe3cd08f8b3163bbe0dcf92e016a87b6bc"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/imgbtn/lv_imgbtn.c",
+      "git_blob": "5c9d1d32241f3e6db1a9097cd3961180c05618b9",
+      "sha256": "bb432d06aeac5cbec89868185facaa7c4b755f6fbf44df664e28e29fd05b7a19"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/keyboard/lv_keyboard.c",
+      "git_blob": "be9d9ccbdab32f9c935d7f9b8109d0474f6eed26",
+      "sha256": "409ec0d42daf3d95890aaa537e3c344c4d0124ca592acd57320ed7095733908a"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/led/lv_led.c",
+      "git_blob": "ba9776c7acadefa6ec3c7f716146860b1fab087c",
+      "sha256": "3c8afcebd36d2825e3a79ced8173901f8b963af76c744d66396c4a84ec24fa58"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/list/lv_list.c",
+      "git_blob": "62a6896efa294afb1f7af188253719670202aa7b",
+      "sha256": "b56ace3679382e33e5f98f1c7630e73e7f6271c6dcbc178f9473feea0558a7fa"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/menu/lv_menu.c",
+      "git_blob": "9c1e4cb2e0b791747f7f454d6037c3253f887659",
+      "sha256": "9ab61a473cae406e7074da0c7a211ce71cb69add4d0418f6462075ece00ccb10"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/meter/lv_meter.c",
+      "git_blob": "03dc4165625b13d4aa92fd228dbf793ba8944897",
+      "sha256": "05ee2277fbe16d1372d6c70ff9c4838dce06fcd3a4eb534499c6309da609dc01"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/msgbox/lv_msgbox.c",
+      "git_blob": "a71c470e501f100698fc177f5363fb3909921c53",
+      "sha256": "1c486111cc65548e471fd0efaffed6ba7c5a45c15b6dc951d10e3368ebe72728"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/span/lv_span.c",
+      "git_blob": "fa4391794c3af39a877e8820edd57d181acc5f78",
+      "sha256": "2202e1e8cbf68ae1c8338a70b3ecc9ce2fd602d62c15be7b9c91fa5fb978feb5"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/spinbox/lv_spinbox.c",
+      "git_blob": "bc4c694504858e17f777348f0b6d103d22203b9f",
+      "sha256": "cebc1605a4520db81561e7599239f4dad25011a97dcaf74860d23745418f7aff"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/spinner/lv_spinner.c",
+      "git_blob": "d63a2c132d66d16ba2e9d6c112ef0e3897846c30",
+      "sha256": "869eddea4f2bd252348ecb4c30589e67f9d51510c7320fb1b24a1af96bb4c81e"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/tabview/lv_tabview.c",
+      "git_blob": "d728f1e728b5f3da20c8f79d2ee3fd906fa613e9",
+      "sha256": "f897a8050adc496e33a750365e69aaaabffa2de8b6b248a2a871a09d5fd8aea4"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/tileview/lv_fast_tileview.c",
+      "git_blob": "32ac377955bc4ab3ced0830ac4ea2d052bc07d5c",
+      "sha256": "c0152caed08c6d10367da39fc0408f31159bd49eb84bd9a550e3fc76e75b1d87"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/tileview/lv_tileview.c",
+      "git_blob": "9c0a71c9de5b10b59b99a155e1b9c7c3410d1c07",
+      "sha256": "b5f90770f8ebe77f34239242eb1e95b1eebdc35d9548cc3d7b55a610d4f14951"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/extra/widgets/win/lv_win.c",
+      "git_blob": "e6e8c76e352e64ba11c8d2000d866d206be6a88c",
+      "sha256": "2233324ac565036cb597a3b1ce5c35085a9f99a6f15be94e1ab7524c597ab339"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font.c",
+      "git_blob": "b2c68cd54b575c066ead72db3a319b4b328790a5",
+      "sha256": "e6aa4b485717c4f0964708d5d892de772da8d2332db78083079696a0e95f2d14"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_dejavu_16_persian_hebrew.c",
+      "git_blob": "1dd8cd80ef9dfb0acb8f7c0d9eb9aa9be5048e81",
+      "sha256": "c39263dffdab03b300c4b9db01996d30d781cb964c0251a0903a3ff030ae83a8"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_fmt_txt.c",
+      "git_blob": "8faecc8d09f5ebad446df6a7136be2418b0b0143",
+      "sha256": "a3ed8a5ad8fca5beb0a97343b020db683f683948c5e6f380cee394ef51f3a6ad"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_loader.c",
+      "git_blob": "73d96a0babf2001447098fcf2e7e15dfa2a9b9cf",
+      "sha256": "da7057c2103a42cb16337795ebbab7bd48b6c5f55da653aeb687d8c4c9c1b535"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_10.c",
+      "git_blob": "3f80db396c124a6ba18ddcf58f94f9b0c690ab51",
+      "sha256": "72959978062e267326840f1d1c1e4dd9904dfb5e9c9a7b81ad83cc9ef8bb0175"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_12.c",
+      "git_blob": "c48ce6fec013a57c19058594846f5390969c59f0",
+      "sha256": "d56d60f9092bbd0eea51035063b1aefd9aceabdf584e5bb94528824b774d7cad"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_12_subpx.c",
+      "git_blob": "85743f98c443dee593ff79f943918225dbaf022e",
+      "sha256": "63ed45e408c3176b2853c4c6966eba55be405ed1e390baa05bfeb1833855559f"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_14.c",
+      "git_blob": "a7c8f378ef97a89fe9af84c96eacc92bee24d70c",
+      "sha256": "24297a2c53834b366c1c89c3bcb146c68cde21d994dc916e026e11684fa74342"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_16.c",
+      "git_blob": "049e2dab395707e13212ef0f4f83f40659ccf460",
+      "sha256": "0451b8bfb54060e93fcf7c0ecdf31f06d0f41cfd9a48e2d6bb57578228445edc"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_18.c",
+      "git_blob": "c8c6e985d3cd1a38eb6a646767983f793a32ba77",
+      "sha256": "74218e8bd60d1f9be3205378d24d9878b29aa85f7531499826947f28390cc05a"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_20.c",
+      "git_blob": "c50d49e3aa44115bc3151e0ae48ddf6ec19a30b2",
+      "sha256": "0c3be54d44232a2ec38b417898a5209fc9b434e2c0bd4858e9804f3c65521a79"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_22.c",
+      "git_blob": "c85fa3d579275048738b5fac8662eddd9276c5c9",
+      "sha256": "5a0245a7d1b143f7abb5b6343a4c7efe976a43ab88c814107e6d7aff468972b2"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_24.c",
+      "git_blob": "9ddbd2dd257e2b7a493db415955fc2bc785b39f2",
+      "sha256": "7f49f97b0c917dac72081521f519487b1983e1faa22be9b2e89fbd48862bd865"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_26.c",
+      "git_blob": "0370df8b16c50c36bd23caf118068cac035aeac8",
+      "sha256": "fd00f6c9c6a5789c71729e4e2caa97bc8492b52d4c33bde82965ad2843119cf2"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_28.c",
+      "git_blob": "b5ec3a0fffbd1018331102d9a9769245c1478043",
+      "sha256": "ecdbb8348e74b4e40e8920cce64ec7219bb24499e1e47038eb6c83babfd91c99"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_28_compressed.c",
+      "git_blob": "f2e48c8b9637f5cad9dfae489045b75357149b54",
+      "sha256": "2a7a2a3b26d6f57eea840d81f38a6028a176af18692a903fe8830f960637c20a"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_30.c",
+      "git_blob": "0bf38ceb9dd92098d8a156e9cc05481bfdea592e",
+      "sha256": "d583cb57de52e2e74fdaf7220479bc764c3235d5ecdeb9d93778ca5795bb5fab"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_32.c",
+      "git_blob": "9aa13fa4a43ed044a6f0c1c4af5ce7a3b12d4a77",
+      "sha256": "bcf436f8732105e584b8ef7c6ff4235991b3e30a37999a09c73caf1e055f090a"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_34.c",
+      "git_blob": "142a28356272323ad880919ba317fe7121ff73d8",
+      "sha256": "556666db1e0ce0d73feead4389766105d56f75a675de169f4edc2f4c047c3ea7"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_36.c",
+      "git_blob": "2eb3e613e3ac68b202436407503777401fcd6d55",
+      "sha256": "50c65b535c5570a464f728324587565927719e0f7dff5042108ee135a3dc8cc6"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_38.c",
+      "git_blob": "92bd37b32ad70f903ea7acb4fe093f7864f9e144",
+      "sha256": "9344c34397820b29686870edff66fa7ccf953351ac5ca7044c910d810f5b535c"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_40.c",
+      "git_blob": "e3f71400731ec5537eb13b129ae19552e25dbdf6",
+      "sha256": "c1826b6f97022df57d10eec97e53abebaff2a65a7709bbc19a10794eb22a52f7"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_42.c",
+      "git_blob": "f1230904e87ab3d97edb06b1807230a4a002d456",
+      "sha256": "cef5b86369ebc716ff69134042259d85462e867107b8cbd398bdd9550ce1c11e"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_44.c",
+      "git_blob": "d0507d383399f0ebd4cb349433616ad392b67dda",
+      "sha256": "c2c1917234d0ab312c558ce94773a158fce7482e1ca840d728c3be8c9260eb80"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_46.c",
+      "git_blob": "ad53913ea64b3923aae1737ab0debddd9f948e02",
+      "sha256": "9c3a14e2fdb008617435a015989543fefc55e1e5bc27d5b4f8c8dcab32a1d959"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_48.c",
+      "git_blob": "4d97a3e86a2be8b77da13982aa5dd7810f714aad",
+      "sha256": "732e6072161d1cc4fae909e1299ff4efe5105955e2f6ecb015170bd6fb9dc601"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_montserrat_8.c",
+      "git_blob": "756567cad361825fe685d20f7171ab42a7d4de76",
+      "sha256": "ada0311d10fc892aae038ac49b06cdc131cf7d4ed50912c025d5ea1672c63d52"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_simsun_16_cjk.c",
+      "git_blob": "5e03b8e4caa40e85a90f6912017b7c4306324e68",
+      "sha256": "c47354d284f7ab4cc58ae6df0a5c6a740e67ab65a33ef16b5193388ef7c369c6"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_unscii_16.c",
+      "git_blob": "57a64d689adcf7351c3e91777a802f1d14cbdfa9",
+      "sha256": "ed4a4c15cc09541f581cd030dae933a800da90a93523c2c7e890105fda27a6bf"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/font/lv_font_unscii_8.c",
+      "git_blob": "332140be6af58ccf4b25f5079bdb34ad9dd23d94",
+      "sha256": "9c5baebace7d1be227f35c1959ad3a7cbfd037e853e1d5cc5957e3de10afaec2"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/hal/lv_hal_disp.c",
+      "git_blob": "8ed737ff7a2bd38f34d64ba5e2c9448ee9f00b9c",
+      "sha256": "8d77088e28fb3cd885d2ec8c7d6bbd76c4fb0c7b35072fb63d7f8e8644eaa9c7"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/hal/lv_hal_indev.c",
+      "git_blob": "bb5a63c35801e2a5aba5058e70c5fa72605f40b3",
+      "sha256": "7869e63f17b8faaadb23ca60cd05dd076441ca6b6218920f52cce150764977f7"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/hal/lv_hal_tick.c",
+      "git_blob": "f6e5242c392d408e58da5de35c142cada5034596",
+      "sha256": "5911027c4267e0e804f0e63cc0eb77ad0ddf94e59f907b5190930885d097b911"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_anim.c",
+      "git_blob": "1f556abbd244fa8e338502c34327f32b42ab3154",
+      "sha256": "cc1e63374cc3a2386ecbcca71bc59bf6f42f676370c046355378dca2e71d54e1"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_anim_timeline.c",
+      "git_blob": "c61e78709229776c079c98d5525ac6e6b545f918",
+      "sha256": "bde5f38a1e031d9ad4e5c7b51571fbb06cf752796e621872f18fc8d4e93b44fe"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_area.c",
+      "git_blob": "6e10cbe841f73e8ccb5bdb623e5120f6209170b6",
+      "sha256": "6ba543bf9fb4a3660e0c18f60600bab900ba14bb52e7655abe8a41e05d4aeb3b"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_async.c",
+      "git_blob": "c0040a25af5f27345cb30911562dad21543ed469",
+      "sha256": "d417afa0c3e0d8f59363cd9bba358da2560cd3cd6eeec80a032bfc8464786d8f"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_bidi.c",
+      "git_blob": "1ebd901eef524850be124e9fcf4cd611202bf4a8",
+      "sha256": "6d5625894974367fc5b6a71c51a51d416803c5d1f6ca0cb15e79f030adc63572"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_color.c",
+      "git_blob": "2184ae5d294c285c33f053de9f9373a9bfaafc00",
+      "sha256": "afdca937a446ccff4aba6999a73edda54c205221416b106e6f5f3ae4eb7fbffa"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_fs.c",
+      "git_blob": "9c869380687955d2fb96c5246e65145fe4108972",
+      "sha256": "d7da26624cd32a536ee52e47dcf5f110e92c76a67834db75ee095b28145ca043"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_gc.c",
+      "git_blob": "37113f1223814f964d9a7a57ad30998c4ba62402",
+      "sha256": "a6cbdcd3b620afe4ac3d30841a657f2abe3af14cf016b443805f34142190d500"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_ll.c",
+      "git_blob": "2e8724a9dd642d6b5bf617170929ca566a5a137b",
+      "sha256": "10d4c227a1c1621797979a561b5bc755728762b61739b839397794197ed07023"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_log.c",
+      "git_blob": "d9a60ec3b06e7039ba6eee6b80ab0e57052bf1a0",
+      "sha256": "51106e33310ea42f0c4f30fbfb054dbc48dcad8154d8a8b089784bb49c8c2b73"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_lru.c",
+      "git_blob": "1f5c1b87d519065abaf229114f42ea6c5bf1ad17",
+      "sha256": "0eb399f3908bfc0bd4b3cc282ee7dff7de4cf1249f9fb1ab579b56deb243c6c2"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_math.c",
+      "git_blob": "d6b68455ab79251135f0192ab908676ab0f7edcb",
+      "sha256": "069a03437b5da9f7d3b3e120118881755cfb3ca7326164e3276113d884406e0e"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_mem.c",
+      "git_blob": "013e55225748bfb384a7aa6a3ae629cc929e52e3",
+      "sha256": "8053d3b6766cfdba83ebeda9c08df539a2dc49758a9954d1bbd55f9437aefbc5"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_printf.c",
+      "git_blob": "0006a5398453bcf908f30d4f6dac1ac5b79d1040",
+      "sha256": "144673a7fea02c5812fb89c19ebe054fe1d2918ee35c9fd33a9f24e05cc63cd4"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_style.c",
+      "git_blob": "a7bbec7db20a81b0e4efe5a7353a6ae65d4c5854",
+      "sha256": "848d8bb965a55c95f4ad41716b8df57cde804069e71c6acbf211c6dad0fc55b1"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_style_gen.c",
+      "git_blob": "36087f09ec3b32275cb88d39e2867c32b518316b",
+      "sha256": "1c0ef59f9eedd8fbaad6365b2c94a6a3963aa7ac9a16743a4369c12c6bb72bab"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_templ.c",
+      "git_blob": "3d3d59f370ed5b4b580fd1b67227ed6dffd0095c",
+      "sha256": "a0d64407c2c2371cb051f05843074645718bb98d72422d10141f5ec2066fdcab"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_timer.c",
+      "git_blob": "abb8721df6ca29bb0d96737cdb8b89f9beeae054",
+      "sha256": "c667a7ff9c45307eba401e6bb7343de6c8d4ed6c0feb4151a053edcdf8be0c0e"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_tlsf.c",
+      "git_blob": "5e50a4654e832e088f05dc5a08cd4ab3e836179c",
+      "sha256": "6af7accb8a9d9e21e287e552a477f334b0bc0af16235660aa8896f698052f178"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_txt.c",
+      "git_blob": "7038ad854b332122ce448df99fd802656cc56275",
+      "sha256": "efd33e0ef88dddefd9840dbd68ef997331995ada8146b77bb2e53815182be2e1"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_txt_ap.c",
+      "git_blob": "0154f2fa413df0130b2509e8e8039399e77b2414",
+      "sha256": "5adb6440e2e81126e036f938b85d6828af1b77bf2a5c3cab1bff6ace42ce05ce"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/misc/lv_utils.c",
+      "git_blob": "5801ff03765afe4a0050abbe00938a2d61b30ad0",
+      "sha256": "633997682aeba95798fb035ae6d7e1af01d205c07ab6fecb0eaac97706d12cb5"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/widgets/lv_arc.c",
+      "git_blob": "58671920d5341dc24c5f639f00504949ea12e32c",
+      "sha256": "3ce68ae4ba68bc5cf7dc2c836b67f46f9585ca6b6c630f69e11b8dabde6885b4"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/widgets/lv_bar.c",
+      "git_blob": "371a507861cf5fdc4f7af9881d0018b087c0f323",
+      "sha256": "48cb9ec3efd02109aea086fe7d0aee31045476d7d46242a1dd0fec54605b7093"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/widgets/lv_btn.c",
+      "git_blob": "7ec452899e573df189748ec8bbbc562dc2905f6f",
+      "sha256": "337bc00d614125ff37164d8ec933bd6bfc59bf1b372ee205149010d77f205894"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/widgets/lv_btnmatrix.c",
+      "git_blob": "3081cb0a44d4f0e39ba76dc2dad23330a8f070f0",
+      "sha256": "a895293e05d65e1d98e08640ef9fa6ef0510bff8d27ea197aaff720cf6326cbe"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/widgets/lv_canvas.c",
+      "git_blob": "bee48563a40b33047a90561b0e3252b0c2a34306",
+      "sha256": "950ba59993ca260f6888a99b9d8db41fc8f98d505703bfb3e932f3ba5654c9aa"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/widgets/lv_checkbox.c",
+      "git_blob": "7676bb361f1beda9ccae8e9bfbc7358c40a2296e",
+      "sha256": "c502fa6781a10b385b4ebfbb8a96bb55af2793e0cbd2145d0a9c32c936a1dd17"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/widgets/lv_dropdown.c",
+      "git_blob": "1d34f6b63f12a13de85b5bf6d53a6a18c67a720d",
+      "sha256": "7f95c8b61c671282178d9f1f204e09b55f8b570dc660326185f460f8424c91a8"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/widgets/lv_img.c",
+      "git_blob": "df0ea1aa12fcb98959dbf56f27857016c8b20b1c",
+      "sha256": "c9e85ac4c28ae061d2ae6ad8f10adea1126c2374cc98d40bcf74b777627c2637"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/widgets/lv_label.c",
+      "git_blob": "32dd1e556ec475ba88d668d197288b3421a3bdd1",
+      "sha256": "2eb1c867365cf36361cd2df92622d732979a9b7612af7d7115cffb058d4dbbde"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/widgets/lv_line.c",
+      "git_blob": "22599c64f5a75808c83a7da847dfa62ff56982fd",
+      "sha256": "f2b9bd4be68258d80af7c3b4f78817c36670871a2875e5372fd60bfdf7466220"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/widgets/lv_objx_templ.c",
+      "git_blob": "8607d7c58750b8ae64bd72d6c3e2b879bab78d07",
+      "sha256": "4aae417ca878cd34b92450e54d9198be4275a7141be9a67bba1cf38806831568"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/widgets/lv_roller.c",
+      "git_blob": "81ef6305a37daebc07c5209a464a78882655ff9b",
+      "sha256": "4116336778dddb162e6869b8eccad61d7892a298d8bbad6713e728ba79b774b0"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/widgets/lv_slider.c",
+      "git_blob": "e37db2d86d4237318ea8460aa28f879e3ea479f7",
+      "sha256": "197928ef72e2e48c104f702f6d9867e725b45b9aa2676e6a83f234538e4d5c90"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/widgets/lv_switch.c",
+      "git_blob": "afd3c999b065bdc0d7fe0b1c2eb79682cf001482",
+      "sha256": "155d6ea43b40e82889904564e3e34cee631e97daecaeeaa34cffaa6a6f443135"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/widgets/lv_table.c",
+      "git_blob": "ce9878afc3deb216aa09e5b297cd8bf4306d3129",
+      "sha256": "ce81f4fb6a0f1b159647880de2d9a8b9255411e824c8b3971cb694b1c2e237d2"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/widgets/lv_textarea.c",
+      "git_blob": "806d52f2d6f18e58e1742a8c28629147608f29c8",
+      "sha256": "38666cd1dca42970256ff747193eccb26b4b287260131ac1a6d2d87557966a5d"
+    },
+    {
+      "path": "ble_app_uart_c/Src/external/qpc_7.3.4/qpc/ports/arm-cm/qv/armclang/qv_port.c",
+      "git_blob": "5df263714222bef23c5c35c7d53561496d67bcf9",
+      "sha256": "cb0e19826df97e987a2556b97db988f44e163504eaa5066d4f3b5b0231f54f75"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/epaper_ui.c",
+      "git_blob": "b50a9e86f3eb359f269a95c1b51d7d99d2c447a3",
+      "sha256": "c2f9e28782e4c8fa4708c1c307d5bae31c085e30b7f3d1c0ae651bf992539c9f"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/epaper_ftest.c",
+      "git_blob": "c0dd45076784dcbfa4f6c653fbb49563f0d7f51e",
+      "sha256": "1c391ff0ed115849e2664ef6b53062344d0f55f14146a25376d5cda07bb979c3"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/events_init.c",
+      "git_blob": "2969c785d8c00b1a7daa1188a3de1034a15a64f8",
+      "sha256": "1b86ce99910dad66b7f7b96d36555144e63682c10e78d738486f7af30f89547d"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/gui_guider.c",
+      "git_blob": "fb8a1cded3cce5bed9327232c65b4b695821d84a",
+      "sha256": "ee19875f515f53d3bfb78ae904fb40a54fd5332dceda8dc54581fdc302dda875"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/setup_scr_screen.c",
+      "git_blob": "dc1bcc62e63af931cdee66c9a692157aaaed3cc4",
+      "sha256": "cf55e024be4a6fea620d104fe6a2a89e0e46c5ec82fb20598d3d6629c9a3e6c3"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/setup_scr_screen_callend.c",
+      "git_blob": "268f7a67be6c58d54df45967324201d3e2b1e992",
+      "sha256": "8bf76306085c35b70da4c135f0a7ba73322c6248a46586492472fd135acd1243"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/setup_scr_screen_calling.c",
+      "git_blob": "fb0a884eacaadfd9e146d69ea7508a30d16feed8",
+      "sha256": "e724d1011de65fb680c30748d58a20aab7a8b68ce2a189e6ffa816e21bde1739"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/setup_scr_screen_lowbat.c",
+      "git_blob": "57a3f427c463a44c2c307002fc432402acc663fb",
+      "sha256": "4b3282b63d85de70fd81378f79b59f66bd1090aa50340f18c635b25681ac0456"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/setup_scr_screen_main.c",
+      "git_blob": "04459c0c942f5ec2a7f7dcf8ab6d242ba71b2838",
+      "sha256": "be35db19417e53567b6195409552f1d0059ecfd5ff2eca5a18bcca8472af334c"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/setup_scr_screen_time.c",
+      "git_blob": "685cff299667e6159b47f1a26f18589be0e5e589",
+      "sha256": "950c81fb4f17f9c320a0a0b40fb664c31e380e9518497b92aec4f808c84c78fe"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/widgets_init.c",
+      "git_blob": "8eacd3e86e723aef248f1f2df9fb6c5c298f6555",
+      "sha256": "13f439dc45378902c800d96c10508e24f89db2b3278dd77d59af931290df798c"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/custom/custom.c",
+      "git_blob": "100aa8a9a214543022e36af3b14563a6c4d6bf8c",
+      "sha256": "70b05124f4a958806f7810b3b5699ab5db9076131a8726a1959411897e52ed07"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/guider_fonts/font_cn_16.c",
+      "git_blob": "b4044a6ab9b374834a5cd165ec91cb987fd1dd93",
+      "sha256": "f7e7f350e7beccfa6ed8da86b05b2bd880c9f1af314259053587b25963cbadf6"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/guider_fonts/font_cn_24.c",
+      "git_blob": "92530eca390e0b137e1a58f35139c6ed7a7f2e68",
+      "sha256": "908099f611a716767ad6544cbfe8ce736d29827c9e1c5b3e357444413b192909"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/guider_fonts/font_cn_28.c",
+      "git_blob": "812ac4a92d25b7d2047a38f321b54160e9ec0b4d",
+      "sha256": "ad0b8f388fe1386ffecd9a8b9ea06b490154151d6788822504a9f00977260c2d"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/guider_fonts/font_cn_32.c",
+      "git_blob": "c3785cbaaba8c52892927f7d1f67f7a4e27a040c",
+      "sha256": "d776b44b5530ce88a76dff6388762ab340393e4a009c5d7d68f3acfc1d17c664"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/guider_fonts/font_cn_40.c",
+      "git_blob": "5e845a461b3b551317ef60c48c5eaaacae7cfdc1",
+      "sha256": "e15a4b8d319d5512a94f71f96e73eaf051481ab20bc508f50476baa517bada63"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/images/_battery_1_alpha_20x10.c",
+      "git_blob": "3e53adb7050de0db972f402e46112ae57edfa775",
+      "sha256": "1f35c75c4ecf400ba05d76577764ed870e26436bc09545251166ff9630f36a4f"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/images/_battery_4_alpha_20x10.c",
+      "git_blob": "8d464f239b73e3e972db385262fb51672c35b4c9",
+      "sha256": "19f07e59c64fdf03c13e93ad3c647f4c8e6864ada704451eada5ffb5ee1abd6d"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/images/_icon_call_connected_alpha_200x200.c",
+      "git_blob": "4b06d714865ec86b4ba995b93ae16b23eeabe75c",
+      "sha256": "f2fe36c28fa932354a143785b2fcd23699e560c1ea4ef94fe2b4b2be9e41eacc"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/images/_icon_call_end_alpha_200x200.c",
+      "git_blob": "563d71d503f5cde7b1b72768721a47b00744b76e",
+      "sha256": "ae68943066c5253bc7ada9e477310da24f395a12b2b309b94e4a821808b4d1fd"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/images/_icon_sos_alpha_200x200.c",
+      "git_blob": "b20af60b11f0751e8b0ec131b5bd230a5c61b191",
+      "sha256": "c785bfd5dac1fc6e2f6cc7c2a0299941c494b2971ec3478aa336bb23bc0ebf05"
+    },
+    {
+      "path": "ble_app_uart_c/Src/user/gui/guider/images/_qr_imei_alpha_116x116.c",
+      "git_blob": "da03d7284d38492b7ed524e22ecb17a2ef1dea51",
+      "sha256": "815f18841492479986fdb00cfdc88be559bc80c507dae529abb1988fc5b9479a"
+    }
+  ],
+  "all_306_references_in_git": true,
+  "baseline_registry": "tools/version_control/baselines.json",
+  "device_data_and_keys": "excluded; local freeze/evidence not uploaded",
+  "tool_rebuild_dependencies": "Pinned vendor binaries/Lua retained; host Python/.NET/Keil/J-Link installed separately; approved signing key pair remains local"
+}

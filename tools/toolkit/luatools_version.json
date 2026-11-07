@@ -1,0 +1,9 @@
+{
+ "version": "v3.4.14",
+ "build": "2026.10.16",
+ "exe_size": 85165960,
+ "resource_version": "v2026.10.13.20",
+ "note": "The Luatools the bundled files were taken from and verified with (as reported by its own log). Change only together with a re-verification.",
+ "exe_sha256": "d1efb1af24a39c74d8f8ac3766c7e986db649cfc844382086b1558ed2bbe8a53",
+ "recorded": "2026-10-30"
+}

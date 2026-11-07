@@ -33,24 +33,21 @@
  *****************************************************************************************
  */
 
-/* I2C Configuration - Final configuration based on your information:
-   GPIO28: CHG_SDA (I2C SDA)
-   AON_GPIO4: CHG_SCL (I2C SCL)
-   AON_GPIO5: CHG_INT (Interrupt) */
+/* YP001: GPIO4/GPIO5 run ETA69631 I2C4; AON_GPIO5 is CHG_INT. */
 #define ETA69631_I2C_SDA_GPIO_TYPE  ETA69631_I2C_SDA_TYPE
 #define ETA69631_I2C_SDA_GPIO_PIN   ETA69631_I2C_SDA_PIN
-#define ETA69631_I2C_SDA_GPIO_MUX   APP_IO_MUX_0  /* Normal GPIO uses MUX_0 */
+#define ETA69631_I2C_SDA_GPIO_MUX   YP001_CHARGER_SDA_MUX
 
 #define ETA69631_I2C_SCL_GPIO_TYPE  ETA69631_I2C_SCL_TYPE
 #define ETA69631_I2C_SCL_GPIO_PIN   ETA69631_I2C_SCL_PIN
-#define ETA69631_I2C_SCL_GPIO_MUX   APP_IO_MUX_0  /* AON GPIO通常使用MUX_0 */
+#define ETA69631_I2C_SCL_GPIO_MUX   YP001_CHARGER_SCL_MUX
 
 /* Interrupt pin for CHRG/STDBY status - Using AON GPIO5 as CHG_INT */
 #define ETA69631_INT_GPIO_TYPE      ETA69631_INT_TYPE
 #define ETA69631_INT_GPIO_PIN       ETA69631_INT_PIN
-#define ETA69631_INT_GPIO_MUX       APP_IO_MUX_0  /* AON GPIO通常使用MUX_0 */
+#define ETA69631_INT_GPIO_MUX       YP001_AON_GPIO_MUX
 
-#define ETA69631_I2C_ID             APP_I2C_ID_1
+#define ETA69631_I2C_ID             APP_I2C_ID_4
 #define ETA69631_I2C_SPEED          I2C_SPEED_400K
 
 /* Default configuration values */
@@ -161,7 +158,6 @@ static bool eta69631_gpio_int_init(void)
     io_init.pin = ETA69631_INT_GPIO_PIN;
     io_init.mode = APP_IO_MODE_IT_BOTH_EDGE;
     io_init.pull = APP_IO_PULLUP;
-    io_init.mux = ETA69631_INT_GPIO_MUX;
     io_init.mux = ETA69631_INT_GPIO_MUX;
     
     ret = app_io_init(ETA69631_INT_GPIO_TYPE, &io_init);

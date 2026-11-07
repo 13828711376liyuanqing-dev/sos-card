@@ -21,8 +21,16 @@
 #include "tk_beacon_parser.h"
 #include "app.h"
 #include "cli.h"
+#include "yp001_scan_sched.h"
+/* SAM | 2026-10-13 15:00 +08:00 | Add actual GATT server for sealed factory BLE tool. */
+#include "factory/yp001_factory_ble.h"
+
+#if APP_LOG_STORE_ENABLE
+#include "app_log_dump_port.h"
+#endif
 
 /*
+
  * DEFINES
  *****************************************************************************************
  */
@@ -50,6 +58,115 @@ static const char     s_target_name[] = "Goodix_UART";                          
 static const uint8_t  s_target_addr[SYS_BD_ADDR_LEN] = {0x13, 0x00, 0xcf, 0x3e, 0xcb, 0xea};    /**< Target board address. */
 static const uint8_t  s_target_uuid[UART_UUID_LEN] = {GUS_SERVICE_UUID};                        /**< Target uuid string. */
 static bool g_beacon_process_enable = true;  // 默认开启
+
+/* YP_BEACON_DEFER_BEGIN */
+/* SAM | 2026-11-05 +08:00 | SDK callbacks can arrive with BASEPRI set; copy legacy Beacon reports here and call QP only from foreground to avoid qv_port:110. */
+#define YP_BEACON_DEFER_CAP 8U
+#define YP_BEACON_DEFER_BYTES 31U
+typedef struct {
+    ble_gap_evt_adv_report_t report;
+    uint8_t data[YP_BEACON_DEFER_BYTES];
+} yp_beacon_pending_t;
+static yp_beacon_pending_t s_beacon_pending[YP_BEACON_DEFER_CAP];
+static volatile uint8_t s_beacon_write;
+static volatile uint8_t s_beacon_read;
+static volatile uint32_t s_beacon_deferred_dropped;
+static volatile uint32_t s_beacon_deferred_delivered;
+
+static void beacon_report_defer(const ble_gap_evt_adv_report_t *report)
+{
+    uint8_t addr[6];
+    int8_t rssi;
+    tk_beacon_data_t decoded;
+    uint8_t write, next;
+    if (!report || !report->data || report->length > YP_BEACON_DEFER_BYTES ||
+        !tk_beacon_process(report, addr, &rssi, &decoded)) return;
+    write = s_beacon_write;
+    next = (uint8_t)((write + 1U) % YP_BEACON_DEFER_CAP);
+    if (next == s_beacon_read) {
+        ++s_beacon_deferred_dropped;
+        return;
+    }
+    s_beacon_pending[write].report = *report;
+    memcpy(s_beacon_pending[write].data, report->data, report->length);
+    s_beacon_pending[write].report.data = s_beacon_pending[write].data;
+    __DMB();
+    s_beacon_write = next;
+}
+
+void yp_beacon_deferred_poll(void)
+{
+    uint8_t budget = 4U;
+    if (__get_IPSR() != 0U || __get_BASEPRI() != 0U || __get_PRIMASK() != 0U) return;
+    if (!g_beacon_process_enable) {
+        s_beacon_read = s_beacon_write;
+        __DMB();
+        return;
+    }
+    while (budget-- && s_beacon_read != s_beacon_write) {
+        uint8_t read = s_beacon_read;
+        ble_gap_evt_adv_report_t report;
+        uint8_t data[YP_BEACON_DEFER_BYTES];
+        __DMB();
+        report = s_beacon_pending[read].report;
+        memcpy(data, s_beacon_pending[read].data, report.length);
+        report.data = data;
+        __DMB();
+        s_beacon_read = (uint8_t)((read + 1U) % YP_BEACON_DEFER_CAP);
+        BeaconDataEvt_send(&report);
+        yp_scan_sched_on_adv_report(&report);
+        ++s_beacon_deferred_delivered;
+    }
+}
+/* YP_BEACON_DEFER_END */
+
+/* SAM | 2026-10-08 22:08 +08:00 | Enable phone discovery and connection;
+ * location scanning remains deferred. Follow SDK ble_app_uart GAP setup. */
+#define YP001_BLE_NAME "YP001"
+
+static ble_gap_adv_time_param_t s_adv_time;
+static bool s_adv_ready;
+static bool s_adv_active;
+static uint8_t s_phone_conn = 0xFF;
+static const uint8_t s_phone_adv[] = {
+    6, BLE_GAP_AD_TYPE_COMPLETE_NAME, 'Y', 'P', '0', '0', '1'
+};
+
+static void phone_advertising_start(void)
+{
+    if (!s_adv_ready || s_phone_conn != 0xFF) return;
+    sdk_err_t err = ble_gap_adv_start(0, &s_adv_time);
+    APP_LOG_INFO("[BLE] ADV request name=%s result=0x%04X", YP001_BLE_NAME, err);
+}
+
+static void phone_advertising_init(void)
+{
+    ble_gap_adv_param_t param = {0};
+    sdk_err_t err = ble_gap_device_name_set(BLE_GAP_WRITE_PERM_DISABLE,
+                         (uint8_t *)YP001_BLE_NAME, sizeof(YP001_BLE_NAME) - 1U);
+    if (err != SDK_SUCCESS) {
+        APP_LOG_ERROR("[BLE] name setup failed: 0x%04X", err);
+        return;
+    }
+    param.adv_intv_min = 160; /* 100 ms, units of 0.625 ms. */
+    param.adv_intv_max = 240;
+    param.adv_mode = BLE_GAP_ADV_TYPE_ADV_IND;
+    param.chnl_map = BLE_GAP_ADV_CHANNEL_37_38_39;
+    param.disc_mode = BLE_GAP_DISC_MODE_GEN_DISCOVERABLE;
+    param.filter_pol = BLE_GAP_ADV_ALLOW_SCAN_ANY_CON_ANY;
+    err = ble_gap_adv_param_set(0, BLE_GAP_OWN_ADDR_STATIC, &param);
+    if (err == SDK_SUCCESS)
+        err = ble_gap_adv_data_set(0, BLE_GAP_ADV_DATA_TYPE_DATA,
+                                  s_phone_adv, sizeof(s_phone_adv));
+    if (err != SDK_SUCCESS) {
+        APP_LOG_ERROR("[BLE] advertising setup failed: 0x%04X", err);
+        return;
+    }
+    s_adv_time.duration = 0;
+    s_adv_time.max_adv_evt = 0;
+    s_adv_ready = true;
+    phone_advertising_start();
+}
 
 /*
  * LOCAL FUNCTION DEFINITIONS
@@ -142,8 +259,7 @@ static void gap_scan_init(void)
 
     // ble_scanner_filter_enable(BLE_SCANNER_FILTER_ALL_MATCH);
 
-    error_code = ble_scanner_start();
-    APP_ERROR_CHECK(error_code);
+    APP_LOG_WARNING("BLE scan disabled: scan start triggers INVSTATE HardFault on YP001.");
 }
 
 /**
@@ -238,18 +354,18 @@ static void app_mtu_exchange_handler(uint8_t conn_idx)
  */
 static void app_disconnected_handler(uint8_t conn_idx, const uint8_t disconnect_reason)
 {
-    sdk_err_t   error_code;
-
     APP_LOG_INFO("Handling disconnection (ConnIdx: %d, Reason: 0x%02X)...", conn_idx, disconnect_reason);
 
     APP_LOG_DEBUG("Reinitializing BLE transport...");
     transport_ble_init();
     APP_LOG_DEBUG("BLE transport reinitialized.");
 
-    APP_LOG_DEBUG("Restarting BLE scanning...");
-    error_code = ble_scanner_start();
-    APP_ERROR_CHECK(error_code);
-    APP_LOG_INFO("BLE scanning restarted after disconnection.");
+    /* SAM | 2026-10-08 22:08 +08:00 | Restore phone discovery on disconnect. */
+    s_phone_conn = 0xFF;
+    /* SAM | 2026-10-13 15:00 +08:00 | Drop factory permission and queued traffic on disconnect. */
+    yp_factory_ble_disconnected(conn_idx);
+    s_adv_active = false;
+    phone_advertising_start();
 }
 
 /*
@@ -258,6 +374,7 @@ static void app_disconnected_handler(uint8_t conn_idx, const uint8_t disconnect_
  */
 void ble_evt_handler(const ble_evt_t *p_evt)
 {
+	//APP_LOG_INFO("ble_evt_handler evt_id = 0x%x",p_evt->evt_id);
     ble_scanner_evt_on_ble_capture(p_evt);
     switch(p_evt->evt_id)
     {
@@ -293,7 +410,7 @@ void ble_evt_handler(const ble_evt_t *p_evt)
                 const ble_gap_evt_adv_report_t *p_adv = &p_evt->evt.gapm_evt.params.adv_report;
                 if (g_beacon_process_enable)  // 添加开关判断
                 {
-                    BeaconDataEvt_send(p_adv);
+                    beacon_report_defer(p_adv);
                 }
         }
             break;
@@ -302,6 +419,9 @@ void ble_evt_handler(const ble_evt_t *p_evt)
             if (BLE_SUCCESS == p_evt->evt_status)
             {
                 APP_LOG_INFO("BLE Connection established (ConnIdx: %d).", p_evt->evt.gapc_evt.index);
+                /* SAM | 2026-10-08 22:08 +08:00 | Track phone link state. */
+                s_phone_conn = p_evt->evt.gapc_evt.index;
+                s_adv_active = false;
             }
             else
             {
@@ -331,7 +451,11 @@ void ble_evt_handler(const ble_evt_t *p_evt)
                            p_evt->evt.gapc_evt.index,
                            p_evt->evt.gatt_common_evt.params.mtu_exchange.mtu);
                 update_mtu_size(p_evt->evt.gatt_common_evt.params.mtu_exchange.mtu);
-                app_mtu_exchange_handler(p_evt->evt.gapc_evt.index);
+                /* SAM | 2026-10-08 22:08 +08:00 | Do not invoke the
+                 * uninitialized GUS client on this phone-facing link. */
+                #if APP_LOG_STORE_ENABLE
+                lms_update_mtu_size(p_evt->evt.gatt_common_evt.params.mtu_exchange.mtu);
+                #endif
             }
             else
             {
@@ -339,6 +463,16 @@ void ble_evt_handler(const ble_evt_t *p_evt)
             }
             break;
 
+        /* SAM | 2026-10-08 22:08 +08:00 | Confirm asynchronous ADV events. */
+        case BLE_GAPM_EVT_ADV_START:
+            s_adv_active = (p_evt->evt_status == BLE_SUCCESS);
+            APP_LOG_INFO("[BLE] ADV started=%u name=%s status=0x%04X",
+                         s_adv_active, YP001_BLE_NAME, p_evt->evt_status);
+            break;
+        case BLE_GAPM_EVT_ADV_STOP:
+            s_adv_active = false;
+            APP_LOG_INFO("[BLE] ADV stopped status=0x%04X", p_evt->evt_status);
+            break;
         default:
             APP_LOG_DEBUG("Unhandled BLE event: 0x%04X", p_evt->evt_id);
             break;
@@ -368,7 +502,8 @@ void ble_app_init(void)
                  bd_addr.gap_addr.addr[2],
                  bd_addr.gap_addr.addr[1],
                  bd_addr.gap_addr.addr[0]);
-    APP_LOG_INFO("Goodix UART Service Client example started.");
+    /* SAM | 2026-10-08 22:08 +08:00 | Report the phone-facing role. */
+    APP_LOG_INFO("YP001 connectable BLE peripheral starting.");
 
     // Initialize transport layers
     APP_LOG_DEBUG("Initializing BLE transport...");
@@ -383,11 +518,18 @@ void ble_app_init(void)
     // APP_ERROR_CHECK(error_code);
     // APP_LOG_DEBUG("GUS Client initialized.");
 
+	#if APP_LOG_STORE_ENABLE
+    app_log_dump_service_init();
+	#endif
     // Initialize GAP parameters and start scanning
     APP_LOG_DEBUG("Initializing GAP parameters...");
     gap_params_init();
-    APP_LOG_DEBUG("Starting BLE scanning...");
+    /* SAM | 2026-10-13 15:00 +08:00 | SDK ble_app_uart initializes GUS before advertising. */
+    yp_factory_ble_init();
+    APP_LOG_DEBUG("Configuring BLE scanning...");
     gap_scan_init();
+    /* SAM | 2026-10-08 22:08 +08:00 | Start phone discovery on boot. */
+    phone_advertising_init();
     APP_LOG_INFO("BLE application initialization completed.");
 }
 
@@ -428,4 +570,76 @@ static int cmd_beacon_process_ctrl(int argc, char *argv[])
 }
 
 // 注册命令
-CLI_CMD_REGISTER("beacon_ctrl", "Control beacon processing (on/off/status)", cmd_beacon_process_ctrl);
+/* SAM | 2026-10-30 21:32 +08:00 | Compact help only to retain OTA signature space; command behavior unchanged. */
+CLI_CMD_REGISTER("beacon_ctrl", "Beacon on|off|status", cmd_beacon_process_ctrl);
+
+/* SAM | 2026-11-05 +08:00 | Read identity, configured TX power and IRQ state because an ADV-start event alone does not prove an on-air packet. */
+static int cmd_ble_status(int argc, char *argv[])
+{
+    ble_gap_bdaddr_t address = {0};
+    int8_t tx_power = 0;
+    sdk_err_t address_result;
+    sdk_err_t power_result;
+    (void)argv;
+    if (argc != 1) return -1;
+    cli_printf("[BLE] name=%s ready=%u advertising=%u conn=%u (255=none)\r\n",
+               YP001_BLE_NAME, s_adv_ready, s_adv_active, s_phone_conn);
+    if (!s_adv_ready) {
+        cli_printf("[BLE_DIAG] identity/power query skipped: advertising setup incomplete\r\n");
+        return 0;
+    }
+    address_result = ble_gap_addr_get(&address);
+    if (address_result == SDK_SUCCESS) {
+        cli_printf("[BLE_DIAG] identity=%02X:%02X:%02X:%02X:%02X:%02X type=%u\r\n",
+                   address.gap_addr.addr[5], address.gap_addr.addr[4],
+                   address.gap_addr.addr[3], address.gap_addr.addr[2],
+                   address.gap_addr.addr[1], address.gap_addr.addr[0],
+                   (unsigned)address.addr_type);
+    } else {
+        cli_printf("[BLE_DIAG] identity unavailable rc=0x%04X\r\n", (unsigned)address_result);
+    }
+    power_result = ble_gap_tx_power_get(BLE_GAP_ACTIVITY_ROLE_ADV, 0, &tx_power);
+    if (power_result == SDK_SUCCESS) {
+        cli_printf("[BLE_DIAG] configured_adv_tx_dbm=%d (on-air verification required)\r\n", (int)tx_power);
+    } else {
+        cli_printf("[BLE_DIAG] configured_adv_tx unavailable rc=0x%04X\r\n", (unsigned)power_result);
+    }
+    cli_printf("[BLE_DIAG] ipsr=%lu basepri=0x%02lX irq_enable sdk=%lu ble=%lu sleep=%lu\r\n",
+               (unsigned long)__get_IPSR(), (unsigned long)__get_BASEPRI(),
+               (unsigned long)NVIC_GetEnableIRQ(BLE_SDK_IRQn),
+               (unsigned long)NVIC_GetEnableIRQ(BLE_IRQn),
+               (unsigned long)NVIC_GetEnableIRQ(BLESLP_IRQn));
+    /* SAM | 2026-11-05 +08:00 | Report actual deferred delivery and overflow so idle stability cannot hide a disabled Beacon path. */
+    cli_printf("[BLE_DIAG] beacon_deferred delivered=%lu dropped=%lu pending=%u\r\n",
+               (unsigned long)s_beacon_deferred_delivered,
+               (unsigned long)s_beacon_deferred_dropped,
+               (unsigned)((s_beacon_write + YP_BEACON_DEFER_CAP - s_beacon_read) % YP_BEACON_DEFER_CAP));
+    return 0;
+}
+/* SAM | 2026-10-30 21:32 +08:00 | Compact help only to retain OTA signature space; command behavior unchanged. */
+CLI_CMD_REGISTER("ble_status", "Advertising/connection state", cmd_ble_status);
+
+static int cmd_ble_scan(int argc, char *argv[])
+{
+    sdk_err_t result;
+    if (argc != 2) {
+        cli_printf("Usage: ble_scan [start|stop]\r\n");
+        return -1;
+    }
+    if (strcmp(argv[1], "start") == 0) {
+        cli_printf("[BLE_DIAG] scan start request\r\n");
+        result = ble_scanner_start();
+    } else if (strcmp(argv[1], "stop") == 0) {
+        cli_printf("[BLE_DIAG] scan stop request\r\n");
+        result = ble_scanner_stop();
+    } else {
+        cli_printf("Usage: ble_scan [start|stop]\r\n");
+        return -1;
+    }
+    cli_printf("[BLE_DIAG] request result=0x%04X\r\n", (unsigned)result);
+    return (int)result;
+}
+/* SAM | 2026-10-30 21:32 +08:00 | Compact help only to retain OTA signature space; command behavior unchanged. */
+CLI_CMD_REGISTER("ble_scan", "BLE scan start|stop", cmd_ble_scan);
+
+bool ble_phone_connected(void) { return s_phone_conn != 0xFFU; }

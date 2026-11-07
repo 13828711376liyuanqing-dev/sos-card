@@ -1,0 +1,37 @@
+YP001 GR5526 J-Link 有线烧录工具  GrJLinkFlash.exe  v1.2
+SAM | 2026-11-01 +08:00
+
+一、做什么
+  把 Gr5526Tool 签好的 GR5526_x.y.z_bN_signed.bin 用 J-Link 烧进板子，并让板上 Boot 认它（不需要 Keil、不需要 Python）：
+  只读备份整片 → 只改 Boot 里 40 字节基线描述符 → 擦 Boot 日志/owner 和 B 槽 → 写 A 槽 → 单独写 Boot 并核对芯片启动配置(SCA)
+  → 整片读回核对（A、Boot、清空区、B 槽、NVDS 不变、SCA 指向 Boot）→ 从串口读 fw_version。
+  SAM | 2026-11-04：最后用同一个串口做出厂清空（name_store clear，再核对 name_store status 为空）：姓名、房号、园区和字形
+  出厂本地不留，等后台下发。窗口里"出厂：清空姓名/房号/园区"默认勾选，只有台架恢复板子、要保留姓名时才取消；
+  没选串口时清空没做，日志会提醒手动执行。命令行脚本对应参数 --keep-name。
+
+二、电脑需要
+  - Windows 10/11（自带 .NET Framework 4，不用装别的）
+  - SEGGER J-Link 软件，装在默认位置 C:\Program Files\SEGGER\JLink\
+  - J-Link 调试器（SWD）接好板子；GR 的 USB 串口可选：窗口下拉选择（SAM | 2026-11-04：默认选上次用过的口，记在 last_port.txt），只用来最后读 fw_version，不接或选"不读版本"也能烧
+  - 本文件夹三个文件放在一起：GrJLinkFlash.exe、GR5xxx_16MB_Flash.FLM、使用说明.txt
+  首次运行会把 GR5526 Flash 算法登记到 %APPDATA%\SEGGER\JLinkDevices\YP001（不需要管理员权限）。
+
+三、怎么用
+  1. 关掉 Keil 调试、关掉占用 GR 串口的工具。
+  2. 双击 GrJLinkFlash.exe，点"选择…"选签名 .bin（或把 .bin 拖到 exe 上打开），窗口会显示版本。
+  3. 点"开始烧录"，确认后等待（约 1–2 分钟）。窗口显示每一步，最后弹"烧录完成，核对全部通过"。
+  4. 每次的记录在 exe 旁边的 logs\<时间>_<版本>\（烧前备份 pre.bin、烧后 post.bin、J-Link 日志）。
+
+四、限制
+  - 只能烧 Gr5526Tool 用项目私钥签名后的 .bin；Keil 直接产出的 hex 不能烧。
+  - 板子必须已经装过本项目配对的 Boot（工具会检查，不是的话直接停止，不写任何东西）。
+  - 会清空 Boot 回滚记录、GR 的 OTA 记录和 B 槽；NVDS（业务数据）不动。
+
+五、出错
+  - "板上 Boot 不是预期的已配对 Boot"：没写任何东西，板子不是这套 Boot，找开发。
+  - "写入报错"/"读回不一致"：不要断电，把 logs 里本次文件夹发给开发；pre.bin 可用于恢复。
+  - GR 起不来（串口无输出）：通常是 SCA 没指向 Boot，再烧一次同一个镜像即可（工具会自动核对并重写 Boot）。
+
+六、中文路径支持（SAM | 2026-11-05 +08:00）
+  v1.2 支持工具目录和镜像路径包含中文、空格。J-Link 在记录目录中使用相对文件名，算法与设备 XML 随记录保存。
+  主机路径回归检查通过，完整实板烧录待验证。

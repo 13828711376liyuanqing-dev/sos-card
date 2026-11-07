@@ -1,0 +1,11 @@
+{
+    "schema":  1,
+    "product":  "YP001",
+    "release_version":  "1.5.14",
+    "component_version":  "001.005.014",
+    "gr_build":  18,
+    "updated_local":  "2026-11-07 07:34 +08:00",
+    "source":  "SOURCE_IDENTITY_ONLY_REBUILD_REQUIRED",
+    "main_header":  "ble_app_uart_c/Src/config/yp001_fw_version.h",
+    "cat1_source":  "Air780EGH/main.lua"
+}

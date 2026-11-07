@@ -1,0 +1,9 @@
+{
+  "toolbox": "YP001_工具包",
+  "private_key": "OTA_keys/YP001_OTA_PrivateKey.xml",
+  "public_key_xml": "OTA_keys/YP001_OTA_PublicKey.xml",
+  "port": "COM30",
+  "out_root": "firmware_releases",
+  "python_deps": "logs/python_deps",
+  "note": "Path-only example. Copy to config.json only on a new checkout and select the existing approved signing key pair. Never upload keys or device state."
+}

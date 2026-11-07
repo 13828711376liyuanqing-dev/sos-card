@@ -2,6 +2,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
+/* SAM | 2026-10-13 14:03 +08:00 | Gate every command owner during cutoff,
+ * including queued AO power commands, rather than only charger start. */
+#include "charger/yp001_charger.h"
 
 /* 底层强制发送函数 */
 extern void uart_tx_data_send_force(uint8_t *p_data, uint16_t length);
@@ -10,12 +13,13 @@ extern void uart_tx_data_send_force(uint8_t *p_data, uint16_t length);
 /* CLI 上下文 */
 static struct {
     char line[CLI_MAX_CMD_LEN];
-    uint8_t pos;
+    uint16_t pos;
+    bool discard;
     const cli_cmd_t *cmds;         /* 指向命令数组（实际存储在段中，无需复制） */
     uint32_t cmd_cnt;              /* 命令数量（运行时计算） */
 } cli_ctx;
 
-static void cli_execute(char *cmd_line);
+static int cli_execute(char *cmd_line);
 static int cmd_help(int argc, char *argv[]);
 
 /* Command section boundaries are supplied by the active toolchain linker. */
@@ -47,7 +51,7 @@ void cli_init(void)
     }
 
     cli_printf("\r\n========================================\r\n");
-    cli_printf("    GR551x CLI Framework v1.0\r\n");
+    cli_printf("    GR5526 CLI Framework v1.0\r\n");
     cli_printf("    Type 'help' for commands\r\n");
     cli_printf("========================================\r\n");
     cli_printf(CLI_PROMPT);
@@ -57,8 +61,21 @@ void cli_init(void)
 /**
  * 处理单个输入字符
  */
+void cli_discard_input(void)
+{
+    cli_ctx.pos = 0;
+    cli_ctx.discard = true;
+}
+
 void cli_process_char(uint8_t ch)
 {
+    if (cli_ctx.discard) {
+        if (ch == '\r' || ch == '\n') {
+            cli_ctx.discard = false;
+            cli_printf("\r\nInput discarded: line too long or RX overflow.\r\n" CLI_PROMPT);
+        }
+        return;
+    }
     if (ch == '\r' || ch == '\n') {
         if (cli_ctx.pos > 0) {
             cli_ctx.line[cli_ctx.pos] = '\0';
@@ -81,6 +98,8 @@ void cli_process_char(uint8_t ch)
     if (cli_ctx.pos < CLI_MAX_CMD_LEN - 1) {
         cli_ctx.line[cli_ctx.pos++] = ch;
         uart_tx_data_send_force(&ch, 1);
+    } else {
+        cli_discard_input();
     }
 }
 
@@ -98,24 +117,25 @@ void cli_printf(const char *fmt, ...)
     va_end(args);
 
     if (len > 0) {
-        uart_tx_data_send_force((uint8_t *)buf, len);
+        uart_tx_data_send_force((uint8_t *)buf, (uint16_t)((len < (int)sizeof(buf)) ? len : sizeof(buf) - 1U));
     }
 }
 
-void cli_execute_string(const char *cmd)
+/* SAM | 2026-11-06 +08:00 | Return real handler status to BLE while retaining the existing void UART/API entry. */
+int cli_execute_string_result(const char *cmd)
 {
-    if (cmd == NULL) return;
-    strncpy(cli_ctx.line, cmd, CLI_MAX_CMD_LEN - 1);
-    cli_ctx.line[CLI_MAX_CMD_LEN - 1] = '\0';
-    cli_ctx.pos = strlen(cli_ctx.line);
-    cli_execute(cli_ctx.line);
-    cli_ctx.pos = 0;
+    char line[CLI_MAX_CMD_LEN];
+    if (!cmd) return -1;
+    if (strlen(cmd)>=sizeof(line)) { cli_printf("Error: command too long\r\n");return -1; }
+    strcpy(line,cmd);
+    return cli_execute(line);
 }
+void cli_execute_string(const char *cmd) { (void)cli_execute_string_result(cmd); }
 
 /**
  * 解析并执行命令行
  */
-static void cli_execute(char *cmd_line)
+static int cli_execute(char *cmd_line)
 {
     char *argv[CLI_MAX_ARGS];
     int argc = 0;
@@ -123,7 +143,7 @@ static void cli_execute(char *cmd_line)
 
     // 去除行首空格
     while (*cmd_line == ' ') cmd_line++;
-    if (*cmd_line == '\0') return;
+    if (*cmd_line == '\0') return -1;
 
     // 分割参数
     token = strtok(cmd_line, " ");
@@ -132,17 +152,31 @@ static void cli_execute(char *cmd_line)
         token = strtok(NULL, " ");
     }
 
+    if (token != NULL) {
+        cli_printf("Error: too many arguments\r\n");
+        return -1;
+    }
+    if (argc == 0) return -1;
+
+    /* SAM | 2026-10-13 14:03 +08:00 | Only ship control remains available
+     * while prepared/failed/sent; motor, UART, reset and UI writes are denied. */
+    if (yp001_charger_ship_locked() &&
+        !(argc >= 3 && !strcmp(argv[0], "charger") && !strcmp(argv[1], "ship"))) {
+        cli_printf("[SHIP] command blocked; use charger ship status/cancel\r\n");
+        return -1;
+    }
+
     // 安全查找命令（若命令数为0则直接报未知命令）
     if (cli_ctx.cmd_cnt > 0 && cli_ctx.cmds != NULL) {
         for (uint32_t i = 0; i < cli_ctx.cmd_cnt; i++) {
             if (strcmp(cli_ctx.cmds[i].name, argv[0]) == 0) {
-                cli_ctx.cmds[i].handler(argc, argv);
-                return;
+                return cli_ctx.cmds[i].handler(argc, argv);
             }
         }
     }
 
     cli_printf("Unknown command: '%s'. Type 'help' for list.\r\n", argv[0]);
+    return -1;
 }
 
 

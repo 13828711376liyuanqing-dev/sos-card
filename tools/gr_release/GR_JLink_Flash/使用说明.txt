@@ -1,0 +1,33 @@
+YP001 GR5526 J-Link 有线烧录工具（不需要 Keil 工程）
+SAM | 2026-11-01 +08:00
+
+一、做什么
+  把 Gr5526Tool 签好的 GR5526_x.y.z_bN_signed.bin 用 J-Link 烧进板子，并让 Boot 认它：
+  1. 只读整片快照（烧前备份 pre.bin）
+  2. 取板上现有 Boot，只改 40 字节基线描述符（长度、版本号、正文 SHA-256）
+  3. 擦除 Boot 日志/owner（0x2F6000-0x2FAFFF）和 B 槽（0x280000-0x2EBFFF）
+  4. 写 A 槽（0x202000）和配对 Boot（0x2EC000），J-Link 校验
+  5. 复位一次，读整片核对 A、Boot、清空区、B 槽、NVDS（NVDS 必须不变）
+  6. 从 COM26 读 fw_version
+  代价：Boot 回滚记录和 B 槽清空（之后的 OTA 从新基线开始，不受影响）。
+
+二、怎么用
+  1. J-Link 连好板子，关掉 Keil 调试、关掉占用 COM26 的串口工具。
+  2. 把签名 .bin 拖到"一键烧录.bat"上（或双击后输入路径）。
+  3. 看到提示后输入 FLASH 回车。
+  4. 结果和全部记录在本文件夹 logs\<时间>_<版本>\（pre.bin、post.bin、flash.log 等）。
+  命令行：python yp001_gr_jlink_flash.py <签名.bin> [--yes] [--port COM26|none]
+
+三、需要
+  - Windows + Python 3（无第三方库）+ SEGGER J-Link 软件（C:\Program Files\SEGGER\JLink\JLink.exe）
+  - 本文件夹里的 GR5xxx_16MB_Flash.FLM（GR5526 Flash 算法，工具首次运行时登记到 %APPDATA%\SEGGER\JLinkDevices\YP001）
+
+四、出错时
+  - "板上 Boot 不是预期的已配对 Boot"：没写任何东西，板子不是这套 Boot，找开发。
+  - "写入过程报错"/"读回不一致"：不要断电，把 logs 里本次文件夹发给开发；可用 pre.bin 恢复。
+  - 只能烧 Gr5526Tool 签名后的 .bin；Keil 直接产出的 hex 不能烧（Boot 会拒绝启动）。
+
+五、实板确认（2026-11-01 21:45）
+  1.5.6/b10 签名镜像，全流程 OK：A、Boot、日志/owner 清空、B 清空、NVDS 不变、SCA 启动目标 = Boot、fw_version 正确。
+  注意：GR5526 Flash 算法会把"一次 J-Link 会话里写的镜像"登记到 SCA（ROM 启动目标）。工具因此先写 A 并复位，
+  再单独一次会话擦写 Boot，并读 SCA 核对，不对自动重写 Boot（最多 3 次）。SCA 不对时 GR 起不来（PC 停在 ROM）。

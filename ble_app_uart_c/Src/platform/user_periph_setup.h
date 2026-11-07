@@ -44,6 +44,7 @@
  *****************************************************************************************
  */
 #include "grx_hal.h"
+#include "../user/yp001_board_config.h"
 #include <stdint.h>
 #include "../user/cli.h"
 #include "app_rtc.h"
@@ -59,6 +60,15 @@
  */
 void app_periph_init(void);
 void debug_uart_boot_init(void);
+void uart_tx_data_send_force(uint8_t *p_data, uint16_t length);
+/* Drain debug UART input in thread context, never in the UART ISR. */
+void debug_uart_cli_poll(void);
+/* SAM | 2026-10-16 17:00 +08:00 | Release asynchronous RX ownership for the attended deep-sleep test. */
+bool yp001_test_uart_pause(void);
+bool yp001_test_uart_resume(void);
+/* SAM | 2026-10-25 +08:00 | IRQ-safe monotonic tick observation for UART
+ * recovery; no business state refresh or peripheral access. */
+uint32_t yp001_uart_clock_ms(void);
 
 /**
  *****************************************************************************************
@@ -108,23 +118,12 @@ void unix_to_rtc_time(uint64_t unix_sec, app_rtc_time_t *rtc);
 void gpio_init(void);
 uint8_t charge_ic_init(void);
 
-#define LED_R_IO_TYPE APP_IO_TYPE_MSIO
-#define LED_R_IO_PIN APP_IO_PIN_2
-#define LED_G_IO_TYPE APP_IO_TYPE_MSIO
-#if (TK_Board_UART_DBG == 1)
-#if defined(__GNUC__)
-#pragma message "LED_G_IO_PIN APP_IO_PIN_4"
-#endif
-#define LED_G_IO_PIN APP_IO_PIN_4
-#endif
-#if ((TK_Board_1_1_UART_DBG == 1)||(TK_Board_PAD_UART_DBG == 1))
-#define LED_G_IO_PIN APP_IO_PIN_0
-#if defined(__GNUC__)
-#pragma message "LED_G_IO_PIN APP_IO_PIN_0"
-#endif
-#endif
-#define LED_B_IO_TYPE APP_IO_TYPE_MSIO
-#define LED_B_IO_PIN APP_IO_PIN_3
+#define LED_R_IO_TYPE YP001_LED_RED_TYPE
+#define LED_R_IO_PIN YP001_LED_RED_PIN
+#define LED_G_IO_TYPE YP001_LED_GREEN_TYPE
+#define LED_G_IO_PIN YP001_LED_GREEN_PIN
+#define LED_B_IO_TYPE YP001_LED_BLUE_TYPE
+#define LED_B_IO_PIN YP001_LED_BLUE_PIN
 
 #define Led_Jkb(R, G, B)                                                                                                                            \
   do                                                                                                                                            \
@@ -137,32 +136,24 @@ uint8_t charge_ic_init(void);
     app_io_write_pin(LED_B_IO_TYPE, LED_B_IO_PIN, !((B) ? APP_IO_PIN_SET : APP_IO_PIN_RESET));                                                  \
   } while (0)
 
-#if (TK_Board_PAD_UART_DBG == 1)
-#pragma message "LDO_PWR_PAD Board"
-#define LDO2_IO_TYPE APP_IO_TYPE_GPIOA
-#define LDO2_IO_PIN APP_IO_PIN_9
-#define LDO3_IO_TYPE APP_IO_TYPE_GPIOA
-#define LDO3_IO_PIN APP_IO_PIN_7
-#define CAT1_IO_TYPE APP_IO_TYPE_GPIOA
-#define CAT1_IO_PIN APP_IO_PIN_6
-#else
-#define LDO2_IO_TYPE APP_IO_TYPE_GPIOB
-#define LDO2_IO_PIN APP_IO_PIN_0
-#define LDO3_IO_TYPE APP_IO_TYPE_GPIOB
-#define LDO3_IO_PIN APP_IO_PIN_1
-#define CAT1_IO_TYPE APP_IO_TYPE_GPIOB
-#define CAT1_IO_PIN APP_IO_PIN_2
-#endif
+#define LDO2_IO_TYPE YP001_SENSOR_POWER_TYPE
+#define LDO2_IO_PIN YP001_SENSOR_POWER_PIN
+#define LDO3_IO_TYPE YP001_LCD_POWER_TYPE
+#define LDO3_IO_PIN YP001_LCD_POWER_PIN
+#define CAT1_IO_TYPE YP001_CAT1_POWER_TYPE
+#define CAT1_IO_PIN YP001_CAT1_POWER_PIN
 
-#define Pwr_Jkb(ldo2_state, ldo3_state, cat1_state) \
+/* SAM | 2026-10-12 19:23 +08:00 | Preserve CAT1 install power because normal sleep uses this macro. */
+#include "ota/yp001_ota.h"
+#define Pwr_Jkb(sensor_power_state, lcd_power_state, cat1_power_state) \
   do                                                                                                                                              \
   {                                                                                                                                               \
-     app_io_init(LDO2_IO_TYPE, &(app_io_init_t){.pull = APP_IO_NOPULL, .mode = APP_IO_MODE_OUTPUT, .pin = LDO2_IO_PIN, .mux = APP_IO_MUX}); \
-     app_io_init(LDO3_IO_TYPE, &(app_io_init_t){.pull = APP_IO_NOPULL, .mode = APP_IO_MODE_OUTPUT, .pin = LDO3_IO_PIN, .mux = APP_IO_MUX}); \
-     app_io_init(CAT1_IO_TYPE, &(app_io_init_t){.pull = APP_IO_NOPULL, .mode = APP_IO_MODE_OUTPUT, .pin = CAT1_IO_PIN, .mux = APP_IO_MUX}); \
-     app_io_write_pin(LDO2_IO_TYPE, LDO2_IO_PIN, (ldo2_state) ? APP_IO_PIN_SET : APP_IO_PIN_RESET); \
-     app_io_write_pin(LDO3_IO_TYPE, LDO3_IO_PIN, (ldo3_state) ? APP_IO_PIN_SET : APP_IO_PIN_RESET); \
-     app_io_write_pin(CAT1_IO_TYPE, CAT1_IO_PIN, (cat1_state) ? APP_IO_PIN_SET : APP_IO_PIN_RESET); \
+     app_io_init(LDO2_IO_TYPE, &(app_io_init_t){.pull = APP_IO_NOPULL, .mode = APP_IO_MODE_OUTPUT, .pin = LDO2_IO_PIN, .mux = YP001_GPIO_GPIO_MUX}); \
+     app_io_init(LDO3_IO_TYPE, &(app_io_init_t){.pull = APP_IO_NOPULL, .mode = APP_IO_MODE_OUTPUT, .pin = LDO3_IO_PIN, .mux = YP001_GPIO_GPIO_MUX}); \
+     if (!yp001_cat1_factory_hold_active() && yp001_ota_power_change_allowed()) app_io_init(CAT1_IO_TYPE, &(app_io_init_t){.pull = APP_IO_NOPULL, .mode = APP_IO_MODE_OUTPUT, .pin = CAT1_IO_PIN, .mux = YP001_GPIO_GPIO_MUX}); \
+     app_io_write_pin(LDO2_IO_TYPE, LDO2_IO_PIN, (sensor_power_state) ? APP_IO_PIN_SET : APP_IO_PIN_RESET); \
+     app_io_write_pin(LDO3_IO_TYPE, LDO3_IO_PIN, (lcd_power_state) ? APP_IO_PIN_SET : APP_IO_PIN_RESET); \
+     if (!yp001_cat1_factory_hold_active() && yp001_ota_power_change_allowed()) app_io_write_pin(CAT1_IO_TYPE, CAT1_IO_PIN, (cat1_power_state) ? YP001_CAT1_POWER_ON : YP001_CAT1_POWER_OFF); \
   } while(0)
 // ==================== 通用宏（支持变长） ====================
 // 单个按键配置辅助宏
@@ -175,4 +166,16 @@ uint8_t charge_ic_init(void);
     app_key_init((app_key_gpio_t*)name##_gpios, sizeof(name##_gpios)/sizeof(app_key_gpio_t), cb)
 
 
+/* SAM | 2026-10-10 18:06 +08:00 | Manual power control is independent of USB flashing and UART. */
+/* SAM | 2026-11-06 +08:00 | Independent RAM-only factory hold must guard every CAT1 power-cut owner. */
+bool yp001_cat1_factory_hold_active(void);
+int cat1_debug_power(int argc, char *argv[]);
+/* SAM | 2026-10-28 19:00 +08:00 | Bench-only foreground service: start a silent CAT1 once per boot while a GR OTA owner is active. */
+void yp001_cat1_ota_autostart_poll(uint32_t now_ms);
+
+/* SAM | 2026-10-13 08:36 +08:00 | Foreground service during panel BUSY because emergency work cannot wait for pixels. */
+void yp001_business_uart_poll(void);
+/* SAM | 2026-10-25 +08:00 | Observe real safety inputs without pumping UART or rendering. */
+void yp001_safety_observation_poll(void);
+void yp001_business_service(void);
 #endif

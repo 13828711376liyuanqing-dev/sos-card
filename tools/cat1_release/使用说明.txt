@@ -1,0 +1,90 @@
+CAT1 刷机目录生成与检查工具  Cat1UsbImport.exe  v1.1 使用说明
+==============================================================
+
+【2026-11-04 起】
+  - 脚本区红线 507904 字节（512 KiB 至少留 16 KiB）：超过就报错、不生成；超过 499712 提醒。
+  - OTA 必检功能（第 [4b] 步，缺一项就报错）：update.lua 在 OTA 发令前删除 /log/app.log 和 .bak 并回报 [OTA] LOG_CLEARED，
+    台架和平台两个入口都先删；OTA 进行中暂停写日志（fs_log.lua 配合）；OTA 保电锁 [OTA_HOLD]（一收到命令就上锁、信标续锁）。
+    没有 update.lua 的源码只提醒“不含 OTA”。
+  - 红线数字在工具包根目录的 budget.json（所有工具和一键工具共用，只改这一个文件，并写明日期和原因）；没有这个文件时用内置的 2026-11-04 默认值。说明见 doc/2026-11-04_OTA空间红线_GR与CAT1大小管控.md。
+
+一、这个工具做什么
+  把 Air780EGH（CAT1 模块）的 Lua 脚本源码，做成 Luatools 可以直接导入刷机的 USB_IMPORT 文件夹，
+  并在生成前后做检查，保证刷进去的东西是完整、能运行、放得下的。
+  什么时候用：改了 CAT1 脚本要刷机；OTA 前要把“接收端”刷到设备上；想确认一份脚本源码能不能刷进去。
+  运行环境：Windows 10/11，不用安装任何软件；整个文件夹（含 vendor_luac、luac_64bit.exe）要放在一起。
+
+二、窗口里要选的两项
+  ┌ 1. 源码目录（含 main.lua）
+  │  怎么选：点“选择…”，选放着 CAT1 脚本的文件夹：里面直接有 main.lua、ota_manager.lua、update.lua 等 .lua 文件和
+  │          sample-6s.mp3（所有文件平铺在这一层，不要选上一级）。
+  │  例子：  D:\CODEX\sos-card\Air780EGH
+  │  作用：  决定刷进设备的是哪一版代码。除 main.lua 外每个 .lua 都会编译成 .luac；main.lua 保留源码，前面自动加一段
+  │          不会执行的“依赖清单”，让 Luatools 合并时把间接加载的模块也带上。
+  │          main.lua 里的 VERSION / PRODUCT_VERSION / FW_RELEASE_BUILD 就是这台设备的“版本身份”，刷进去后设备就报这个版本。
+  │  选错的后果：选到没有 main.lua 的文件夹，工具直接报错，不会生成任何文件。
+  │
+  └ 2. 输出位置
+     怎么选：选一个文件夹（空的最好）。
+     例子：  D:\out\cat1_1.5.2_receiver
+     作用：  生成 D:\out\cat1_1.5.2_receiver\USB_IMPORT\（用 Luatools 导入刷机的就是它）和
+             D:\out\cat1_1.5.2_receiver\integrity.json（版本、容量、每个文件的 sha256，留作记录；它在 USB_IMPORT 外面，不会被刷进设备）。
+     如果这里已经有 USB_IMPORT：会弹出窗口问“要用这次的结果替换它吗？”，选“是”才替换（只会删除里面有 main.lua 的 USB_IMPORT），
+             选“否”就什么都不做。
+
+  不用选的东西（工具自己处理）：
+    - 厂商预编译库：自动用工具文件夹里的 vendor_luac（air1103、es8311、exsipclient、exsipproto 四个库，sha256 记在 vendor.json 里，
+      对不上就拒绝生成）。这四个库没有源码，会原样放进刷机目录。
+    - Luatools 的位置：只有点“检查依赖版本”时才会问。
+
+三、两个按钮
+  检查并生成：先检查，全部通过才输出；任何 ERROR 都不会留下半成品。
+  检查依赖版本：先列出本工具依赖的 Luatools 版本（Luatools v3.4.14，脚本资源 v2026.10.13.20，底包 V2052_Air780EGH_113）和自带文件是否完整；
+                然后会弹出“选择文件夹”窗口：选已安装的 Luatools（例如 D:\Installers），就会和本机 Luatools 对比，列出需要升级的文件；
+                点“取消”则只检查工具包自带的文件。
+
+四、报告怎么看
+  每一行以 OK、WARN、ERROR 开头。最后一行“结果：通过/失败（错误 n，警告 m）”。
+  ERROR：必须处理，没有输出文件。      WARN：不影响生成，但要看一眼。
+  常见提示：
+    “OTA_TRIAL_MD5 为全零：这套脚本不能发起 OTA”   正常。表示这份脚本没有冻结升级包，设备刷了以后不能用 cat_at OTA_TRIAL 发起升级；
+                                                    要给设备做“接收端”时，把升级包整包 MD5 写进 main.lua 的 OTA_TRIAL_MD5 再生成。
+    “OTA_TRIAL_SOURCE=… 与 PRODUCT_VERSION=… 不一致”  main.lua 里的 OTA_TRIAL_SOURCE 必须等于设备当前版本（PRODUCT_VERSION），
+                                                    否则接收端会拒绝发起升级。改 main.lua 后重新生成。
+    “文件名超过 23 字节”         Luatools 限制，把过长的脚本文件名改短。
+    “LuaDB … 超出 524288 字节”   脚本总量放不下 CAT1 的 512 KiB 脚本区，需要删减代码或文件。余量不足 2 KiB 会给警告。
+    “… 编译失败”                 对应 .lua 有语法错误，报告里会写明文件和行。
+    “厂商库 … sha256 与 vendor.json 不一致”   vendor_luac 里的文件被改过或损坏，恢复原文件。
+
+五、完整例子：给设备（现在是 1.5.2）刷“接收端”，准备下一次升级到 1.5.3
+  1. 在 Air780EGH\main.lua 里确认：PRODUCT_VERSION = "1.5.2"，OTA_TRIAL_SOURCE='1.5.2'，OTA_TRIAL_TARGET='1.5.3'，
+     OTA_TRIAL_MD5 先保持全零（升级包还没打）。
+  2. 打开工具，源码目录选 D:\CODEX\sos-card\Air780EGH，输出位置选 D:\out\cat1_receiver，点“检查并生成”→ 无 ERROR。
+  3. 升级包打好后，把整包 MD5（“3_整机OTA打包”工具报告里的“平台整包 MD5”）填进 main.lua 的 OTA_TRIAL_MD5，再点“检查并生成”，
+     在弹出的替换提示里选“是”。
+  4. 用 Luatools 导入 D:\out\cat1_receiver\USB_IMPORT 刷机（保留文件系统和 KV）；刷完用 cat_at FOTA_STATUS 确认是 IDLE。
+
+六、命令行（不开窗口时用；窗口里没有的选项只在这里）
+  Cat1UsbImport.exe --source <源码目录> --out <输出位置> [--check-only] [--force] [--vendor <厂商库目录>]
+      --check-only  只检查，不写任何文件        --force  已有 USB_IMPORT 时直接替换（窗口里是弹窗确认）
+      --vendor      指定别的厂商库目录（一般不用；改变厂商库等于改变设备固件的组成，须先实板验证）
+  Cat1UsbImport.exe --deps [--luatools <已安装的Luatools目录>]     检查依赖版本
+  Cat1UsbImport.exe --version                                       显示版本
+  例子：Cat1UsbImport.exe --source D:\CODEX\sos-card\Air780EGH --out D:\out\r --force
+  返回值：0 通过；1 有错误；2 参数错误。
+
+七、检查项汇总（任何 ERROR 都不会输出文件）
+  - luac_64bit.exe 是已验证的版本（校验 sha256）；源码是 UTF-8，都能编译（LF 换行只警告）；
+  - 文件名平铺且不超过 23 字节；
+  - main.lua 有 VERSION / PRODUCT_VERSION / FW_RELEASE_BUILD；OTA_TRIAL_MD5 是 32 位十六进制；OTA_TRIAL_SOURCE 等于 PRODUCT_VERSION；
+  - 源码里写死的 require 都能找到模块（找不到只警告）；
+  - 厂商库 sha256 与 vendor.json 一致，且不和源码模块重名；
+  - LuaDB 总大小不超过 524288 字节；
+  - 写出后回读每个文件核对 sha256，并写 integrity.json。
+
+八、依赖的 Luatools 版本
+  窗口顶部灰色一行和每份报告的第一行都会写明：工具版本、Luatools 版本、脚本资源版本、底包版本。
+  Luatools 升级后（它会自动更新脚本资源）：点“检查依赖版本”，在弹出的窗口里选已安装的 Luatools 目录。
+  结果里绿色的“提示”和“结论：不影响使用，不用升级”表示没有影响，什么都不用做；红色表示必须处理（只有工具包自带文件缺失或被改动才会出现，请重新拿完整的工具包，不要自己替换文件）。
+  只有你决定让设备改用新的厂商库时才需要升级：由工具维护人用新库重新生成、实板验证后发新的工具包，在那之前继续使用现有的即可。
+  本工具依赖：luac_64bit.exe（Lua 编译器）和 vendor_luac 里的 4 个厂商预编译库。

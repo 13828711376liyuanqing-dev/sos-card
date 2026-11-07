@@ -22,7 +22,7 @@
 
 ## 编译步骤
 1. **打开Keil工程**
-   - 打开 `Keil_5/ble_app_uart_c.uvprojx`
+   - 打开 `ble_app_uart_c/Keil_6/YP001_GR5526.uvprojx`
    - 确认所有源文件已添加到工程
 
 2. **添加新文件到Keil工程**

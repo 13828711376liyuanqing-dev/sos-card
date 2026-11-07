@@ -79,11 +79,40 @@ extern void uart4_send_data(uint8_t *p_data, uint16_t length);
 
 //............................................................................
 int main() {
+    /* SAM | 2026-10-18 20:34 +08:00 | Snapshot AON wake latches before any BSP/GPIO init can clear them because ultra-sleep wake reboots and loses the RAM wake-source flags. */
+    uint32_t aon_io_wake_status = AON_IO->EXT_WAKEUP_STAT;
+    uint32_t aon_sleep_event = AON_CTL->AON_SLP_EVENT;
+    uint32_t aon_sleep_event_raw = AON_CTL->AON_SLP_EVENT_RAW;
+    uint32_t aon_ctl_wake_status = AON_CTL->EXT_WAKEUP_STAT;
     debug_uart_boot_init(); // Direct UART banner before QP and other peripherals.
+    cli_printf("[BOOT WAKE DIAG] aon_io_ext=%08lX aon_ctl_ext=%08lX aon_event=%08lX aon_raw=%08lX\r\n",
+               (unsigned long)aon_io_wake_status, (unsigned long)aon_ctl_wake_status,
+               (unsigned long)aon_sleep_event, (unsigned long)aon_sleep_event_raw);
+    /* SAM | 2026-10-20 +08:00 | Consume the pre-SDK-reset snapshot once; invalid retention is explicitly unknown, never a zero-source success. */
+#if defined(YP001_BOARD) && defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6100100)
+    extern volatile uint32_t yp001_ultra_wake_snapshot[8];
+    uint32_t check = 0x57554C54U;
+    for (unsigned int i = 2U; i < 8U; ++i) check ^= yp001_ultra_wake_snapshot[i];
+    if (yp001_ultra_wake_snapshot[0] == 0x57554C54U &&
+        yp001_ultra_wake_snapshot[1] == ~check) {
+        cli_printf("[ULTRA PRE-RESET] valid=1 io=%08lX ctl=%08lX event=%08lX raw=%08lX sw3=%08lX enable=%08lX\r\n",
+            (unsigned long)yp001_ultra_wake_snapshot[2], (unsigned long)yp001_ultra_wake_snapshot[3],
+            (unsigned long)yp001_ultra_wake_snapshot[4], (unsigned long)yp001_ultra_wake_snapshot[5],
+            (unsigned long)yp001_ultra_wake_snapshot[6], (unsigned long)yp001_ultra_wake_snapshot[7]);
+    } else {
+        cli_printf("[ULTRA PRE-RESET] valid=0 (cold boot or retention unavailable; source unknown)\r\n");
+    }
+    yp001_ultra_wake_snapshot[0] = 0U;
+    __DSB();
+#endif
     QF_init();       // initialize the framework and the underlying RT kernel
     BSP_init();      // initialize the BSP
+    cli_printf("[BOOT] BSP_init complete; starting QP objects\r\n");
     BSP_start();     // start the AOs/Threads
-    return QF_run(); // run the QF application
+    cli_printf("[BOOT] BSP_start complete; entering QF_run\r\n");
+    /* SAM | 2026-10-17 17:06 +08:00 | Restore QV's original MSP startup because the PSP experiment faulted after wake on the board. */
+    (void)QF_run(); // QV runs indefinitely.
+    for (;;) { }
 }
 #else
 STACK_HEAP_INIT(heaps_table);
@@ -139,6 +168,7 @@ int main(void)
     );
     while (1)
     {
+        debug_uart_cli_poll();
         app_log_flush();
         transport_schedule();
         pwr_mgmt_schedule();

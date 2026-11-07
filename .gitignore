@@ -15,6 +15,9 @@
 *.d
 *.axf
 *.sct
+# SAM | 2026-10-07 11:34 +08:00 | Keep required YP001 linker sources visible for delivery.
+!ble_app_uart_c/Keil_6/YP001_GR5526.sct
+!SVN交付_YP001_GR5526_20261001/ble_app_uart_c/Keil_6/YP001_GR5526.sct
 !SDK/platform/soc/linker/keil/flash_scatter_common.sct
 !GR5526_LCD_Keil_交接工程/SDK/platform/soc/linker/keil/flash_scatter_common.sct
 *.build_log.htm
@@ -182,3 +185,51 @@ SDK/projects/**/out/
 
 # 超过 GitHub 单文件限制的预编译库
 SDK/platform/soc/linker/keil/ble_sdk.lib
+
+# test signing keys (never commit or ship)
+tools/toolkit/test_keys/
+
+# SAM | 2026-11-07 | Source upload boundaries: preserve source and pinned inputs, keep local/device material out.
+/logs/
+/firmware_releases/
+/archive/
+/OTA_keys/
+/YP001_工具包/
+/YP001_工具包.rar
+/YP001_工具包_*.zip
+*.zip
+*.rar
+*.7z
+*.pem
+*.key
+*.p12
+*.pfx
+**/node_modules/
+**/__pycache__/
+**/logs/
+**/hash_cache.json
+/tools/ota_oneclick/state.json
+/tools/ota_oneclick/config.json
+/tools/ota_oneclick/tmp*/
+/tools/ota_oneclick/gate_fixture_*/
+/tools/ota/tmp*/
+/tools/gr_release/GR_JLink_Flash/gr_path_test_*/
+/Air780EGH/_*/
+/Air780EGH/soc/*
+!/Air780EGH/soc/LuatOS-SoC_V2052_Air780EGH_113.soc
+# SAM | 2026-11-07 | These ignored-by-generic-extension files are required active build/download inputs.
+!/ble_app_uart_c/Keil_6/YP001_GR5526.uvprojx
+!/ble_app_uart_c/Keil_6/YP001_GR5526.uvoptx
+!/ble_app_uart_c/Keil_6/YP001_GR5526.sct
+!/SDK/platform/soc/linker/keil/ble_sdk.lib
+!/SDK/platform/soc/linker/keil/graphics_sdk.lib
+
+# Local resident samples and old signed deliveries are not source inputs.
+/123/
+/residentNameMsg_*.json
+
+# Local credentials remain outside version history.
+.env
+.env.*
+!.env.example
+/.claude/settings.local.json

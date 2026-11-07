@@ -62,5 +62,8 @@ void ble_evt_handler(const ble_evt_t *p_evt);
  */
 void ble_app_init(void);
 
+/* SAM | 2026-11-05 +08:00 | Drain copied Beacon reports only in unmasked foreground, outside SDK callback context. */
+void yp_beacon_deferred_poll(void);
+
 #endif
 

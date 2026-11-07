@@ -15,6 +15,7 @@
 
 #include "eta69631.h"
 #include "app_log.h"
+#include "user_periph_setup.h"
 #include <stdio.h>
 
 /**
@@ -24,6 +25,7 @@
  */
 void chg_test_init(void)
 {
+    Pwr_Jkb(1, 1, 0);
     APP_LOG_INFO("=== ETA69631 Initialization Test ===");
     
     if (eta69631_init())

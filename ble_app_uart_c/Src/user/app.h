@@ -46,8 +46,7 @@
 #include "app_uart.h"
 #include "AOs.h"
 
-// 声明 App 包（信号、事件、全局指针）
-
+// 声明 App 包（信号、事件、全局指针�?
 
 
 enum AppSignals {
@@ -61,6 +60,7 @@ enum AppSignals {
     MSG_SEND_DONE_SIG,
     GPS_PROCESS_DONE_SIG,
     LBS_PROCESS_DONE_SIG,
+    WIFI_PROCESS_DONE_SIG,
     SAVE_DONE_SIG,
     MAX_PUB_SIG,
     UART_RX_DATA_SIG,
@@ -74,6 +74,7 @@ enum AppSignals {
     SIP_INIT_OK_SIG,
     SIP_INIT_START_SIG,
     SIP_INCOMING_SIG,
+    SIP_DAIL_SIG,
     SIP_DISCONNECT_SIG,
     CC_INIT_START_SIG,
     CC_INIT_OK_SIG,
@@ -95,6 +96,11 @@ enum AppSignals {
     DA221_PROCESS_DONE_SIG,
     DA221_CFG_KO_SIG,
     DA221_CFG_OK_SIG,
+    ONLINE_STATUS_SIG,
+    OFFLINE_STATUS_SIG,
+    /* SAM | 2026-11-04 +08:00 | Confirmed SOS/cancel bypass raw-key qualification; append to preserve existing IDs. */
+    SOS_START_SIG,
+    SOS_STOP_SIG,
     MAX_SIG
 };
 
@@ -132,14 +138,19 @@ static inline void BeaconDataEvt_send(void const * p_adv) {
 
         if (tk_beacon_process(p_adv, addr, &rssi, &data))
         {
-            // ✅ 官方标准：Q_NEW（和你给的示例完全一样）
-            BeaconDataEvt *e = Q_NEW(BeaconDataEvt, BEACON_DATA_SIG);
+            /* SAM | 2026-10-04 11:07 +08:00 | Avoid QP assertions during
+             * advertisement bursts; drop samples when resources are full. */
+            if (app_state_machine == NULL || app_state_machine->prio == 0U) {
+                return;
+            }
+            BeaconDataEvt *e = Q_NEW_X(BeaconDataEvt, 0U, BEACON_DATA_SIG);
 
             if (e != NULL) {
                 BeaconDataEvt_init(e, addr, rssi, &data);
 
-                // ✅ 官方标准：QACTIVE_POST（和示例完全一致）
-                QACTIVE_POST(app_state_machine, (QEvt *)e, p_adv);
+                /* SAM | 2026-10-04 11:07 +08:00 | Reserve two queue slots
+                 * for control events. QP recycles rejected dynamic events. */
+                (void)QACTIVE_POST_X(app_state_machine, (QEvt *)e, 2U, p_adv);
             }
         }
 }

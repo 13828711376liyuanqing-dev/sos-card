@@ -44,6 +44,7 @@
 #include "app_i2c.h"
 #include "app_i2c_dma.h"
 #include "board_SK.h"
+#include "yp001_board_config.h"
 // GPIO 引脚配置结构体（风格与 I2C 参数一致）
 typedef struct {
     app_io_type_t type;           // IO 类型
@@ -96,19 +97,20 @@ typedef enum {
 #define DA221_I2C_TIMEOUT_MS 100U
 #define DA221_CHIP_ID_VALID 0x13U
 
-#define TK_DA221_ADDR      (0x27)
+/* SAM | 2026-10-18 18:57 +08:00 | Use SA0-low address measured on YP001 (ID 0x13 at 0x26) so production init and sleep wake configure the same DA215. */
+#define TK_DA221_ADDR      (0x26)
 
-/* ===== I2C0: DA221(三轴加速度) ===== */
+/* ===== I2C0: G-sensor, schematic U1104 GPIO2/3 ===== */
 #define TK_I2C0_ID              APP_I2C_ID_0
-#define TK_I2C0_SCL_TYPE        APP_IO_TYPE_GPIOA
-#define TK_I2C0_SDA_TYPE        APP_IO_TYPE_GPIOA
-#define TK_I2C0_SCL_PIN         APP_IO_PIN_2      /* GPIO2 -> 引脚6, I2C0_SCL */
-#define TK_I2C0_SDA_PIN         APP_IO_PIN_3      /* GPIO3 -> 引脚7, I2C0_SDA */
-#define TK_I2C0_SCL_MUX         APP_IO_MUX_0
-#define TK_I2C0_SDA_MUX         APP_IO_MUX_0
+#define TK_I2C0_SCL_TYPE        YP001_SENSOR_I2C_TYPE
+#define TK_I2C0_SDA_TYPE        YP001_SENSOR_I2C_TYPE
+#define TK_I2C0_SCL_PIN         YP001_SENSOR_SCL_PIN
+#define TK_I2C0_SDA_PIN         YP001_SENSOR_SDA_PIN
+#define TK_I2C0_SCL_MUX         YP001_SENSOR_SCL_MUX
+#define TK_I2C0_SDA_MUX         YP001_SENSOR_SDA_MUX
 
-#define TK_DA221_PWR_TYPE       APP_IO_TYPE_GPIOB
-#define TK_DA221_PWR_PIN        APP_IO_PIN_0      /* GPIO16 -> GPIOB Pin0, VDD_1V8 for DA221, 高有效 */
+#define TK_DA221_PWR_TYPE       YP001_SENSOR_POWER_TYPE
+#define TK_DA221_PWR_PIN        YP001_SENSOR_POWER_PIN
 
 // 两套配置表
 extern const I2cRegCfg_t da221_full_speed_config_table[];

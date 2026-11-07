@@ -1,0 +1,9 @@
+{
+ "note": "SAM | 2026-10-30 10:12 +08:00 | Precompiled LuatOS vendor libraries shipped in every USB_IMPORT (no Lua source here). Copied from the board-verified ota153/ota152 USB_IMPORT. The USB_IMPORT tool refuses files whose sha256 differs.",
+ "files": {
+  "air1103.luac": "9971d957d0140d547f99e7e104fadc89723118542567df319ee474b2064ef785",
+  "es8311.luac": "3d230d703f07305359736de735953d35ad6a9344e0555df966e0797b562f8daf",
+  "exsipclient.luac": "60732ac0459913824485d43cfe4a7dbf91aa885479af42eacedf746f9296bcf7",
+  "exsipproto.luac": "a24df554cc4f21e82250be7b22ea3c4e6d43b30c35a1cc96e3e37616d0810371"
+ }
+}

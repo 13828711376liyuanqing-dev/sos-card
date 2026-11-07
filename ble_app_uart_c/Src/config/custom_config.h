@@ -41,6 +41,8 @@
  */
 #ifndef __CUSTOM_CONFIG_H__
 #define __CUSTOM_CONFIG_H__
+/* SAM | 2026-10-12 19:23 +08:00 | Retain user NVDS on init errors because OTA must never format user data. */
+#define NVDS_ALLOW_DESTRUCTIVE_RECOVERY 0
 
 // <<< Use Configuration Wizard in Context Menu >>>
 
@@ -75,7 +77,7 @@
 // <0=> DISABLE
 // <1=> ENABLE
 #ifndef APP_LOG_ENABLE
-#define APP_LOG_ENABLE          1
+#define APP_LOG_ENABLE          0
 #endif
 
 // <o> APP log port type
@@ -223,8 +225,13 @@
 #endif
 
 // <o> Code version.16bits
+/* SAM | 2026-10-22 +08:00 | Keep Goodix's 16-bit build counter separate from the controlled three-part firmware version. */
+#include "yp001_fw_version.h"
 #ifndef VERSION
-#define VERSION                 1
+#define VERSION                 YP001_FW_BUILD
+#endif
+#if VERSION != YP001_FW_BUILD
+#error VERSION_must_match_controlled_firmware_build
 #endif
 
 // </h>
@@ -253,7 +260,7 @@
 // <i>  Range: 0-5
 // <i>  Note: The total number of BLE Legacy/Extended/Periodic Advertisings should not exceed the limit 5.
 #ifndef CFG_MAX_ADVS
-#define CFG_MAX_ADVS             0
+#define CFG_MAX_ADVS             1
 #endif
 
 // <o>  Support maximum number of BLE Scan <0-1>

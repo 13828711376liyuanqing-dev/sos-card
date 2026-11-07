@@ -4,10 +4,10 @@
 用于探测哪个模块的初始化是 UART1 正常通信所必需的
 ]]
 PROJECT = "YP01_CAT1"
--- SAM | 2026-11-07 11:58 +08:00 | Source identity set by YpVersionTool; rebuild GR and CAT1 before use.
-VERSION = "001.005.017"
-PRODUCT_VERSION = "1.5.17"
-FW_RELEASE_BUILD = 21
+-- SAM | 2026-11-07 12:20 +08:00 | Source identity set by YpVersionTool; rebuild GR and CAT1 before use.
+VERSION = "001.005.018"
+PRODUCT_VERSION = "1.5.18"
+FW_RELEASE_BUILD = 22
 
 -- 全局 AT 命令表初始化
 _G.at_cmd_handlers = {}

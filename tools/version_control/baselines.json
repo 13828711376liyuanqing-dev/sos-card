@@ -53,9 +53,21 @@
       "directory": "firmware_releases/candidates/svn_r88_call_display_20261107",
       "manifest_sha256": "64dbf5e5904501a941a5ccb07033ff0bcb4207fecd9e47e253121d7628a9aac5",
       "parent_source_commit": "dbfca47bf37abdbd8249b00f07057ccc5874de93",
+      "status": "USER_ACCEPTED_LOCAL_DISPLAY_SCOPE",
+      "release_identity": "GR_1.5.17_b21_CAT1_RUNTIME_1.5.14",
+      "accepted_function": "QP dialing publishes YP_CALL_DIALING through shared call/revision setter; actual CAT1 BUS_EVT drives other states; alarm retained",
+      "startup_evidence": "logs/svn_integration_20261107/board_b21/startup_verification.json",
+      "physical_display_acceptance": "USER_CONFIRMED_SYNTHETIC_CONNECTED_AND_ENDED_THEN_HOME",
+      "remaining_board_cases": "Actual SIP call and QP dialing to real screen remain pending without call environment"
+    },
+    {
+      "candidate_id": "SVN_R88_SCAN_STOP_1.5.18_b22_20261107",
+      "directory": "firmware_releases/candidates/svn_r88_scan_stop_20261107",
+      "manifest_sha256": "966b868c5cde76fc37b1bb948081a00bfdb817d5dfc1b1fc491e9ee07b16288a",
+      "parent_source_commit": "7d30b25016e5d5334928aac653f0560540ef873f",
       "status": "SOURCE_HOST_PASS_NOT_BUILT_NOT_FLASHED",
-      "release_identity": "CANDIDATE_1.5.17_b21_NOT_BUILT",
-      "accepted_function": "QP dialing publishes YP_CALL_DIALING through shared call/revision setter; actual CAT1 BUS_EVT drives other states; alarm retained"
+      "release_identity": "CANDIDATE_1.5.18_b22_NOT_BUILT",
+      "accepted_function": "Adapt donor periodic radio stop with shared location/manual leases, alarm/phone guards, actual BLE stop completion barrier and handoff restart"
     }
   ],
   "incomplete_directories": [

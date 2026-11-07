@@ -381,6 +381,8 @@ QState LocaSvr_BeaconProcess(LocaSvr * const me, QEvt const * const e) {
             me->BEACONData.timestamp = 0U;
             // 可选：清空整个列表，防止旧指针残留
             memset(me->BEACONData.list, 0, sizeof(me->BEACONData.list));
+            /* SAM | 2026-11-07 12:17 +08:00 | Keep periodic cleanup from stopping SOS/find-device beacon collection. */
+            yp_scan_sched_radio_hold(YP_SCAN_HOLD_LOCATION, true);
 			ble_scanner_start();
             //===========================================
             QTimeEvt_armX(&me->timeEvt, 3U * BSP_TICKS_PER_SEC, 0U);
@@ -392,6 +394,8 @@ QState LocaSvr_BeaconProcess(LocaSvr * const me, QEvt const * const e) {
         
         case Q_EXIT_SIG: {
 
+            /* SAM | 2026-11-07 12:17 +08:00 | Release the radio lease on every state exit, including cancellation. */
+            yp_scan_sched_radio_hold(YP_SCAN_HOLD_LOCATION, false);
             printf("Loca Exit BeaconProcess\n");
 
             (void)QTimeEvt_disarm(&me->timeEvt);

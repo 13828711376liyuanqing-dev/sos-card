@@ -395,6 +395,8 @@ void ble_evt_handler(const ble_evt_t *p_evt)
             break;
 
         case BLE_GAPM_EVT_SCAN_STOP:
+            /* SAM | 2026-11-07 12:18 +08:00 | Confirm the periodic stop barrier using the controller event, not the API return. */
+            yp_scan_sched_on_radio_stop(p_evt->evt_status == BLE_SUCCESS);
             if (BLE_GAP_STOPPED_REASON_TIMEOUT == p_evt->evt.gapm_evt.params.scan_stop.reason)
             {
                 APP_LOG_INFO("Scan stopped: Timeout.");
@@ -628,10 +630,16 @@ static int cmd_ble_scan(int argc, char *argv[])
     }
     if (strcmp(argv[1], "start") == 0) {
         cli_printf("[BLE_DIAG] scan start request\r\n");
+        /* SAM | 2026-11-07 12:22 +08:00 | Claim before start because a pending stop event can complete inside the SDK call. */
+        yp_scan_sched_radio_hold(YP_SCAN_HOLD_MANUAL, true);
         result = ble_scanner_start();
+        if (result != BLE_SUCCESS && result != 0x0FU)
+            yp_scan_sched_radio_hold(YP_SCAN_HOLD_MANUAL, false);
     } else if (strcmp(argv[1], "stop") == 0) {
         cli_printf("[BLE_DIAG] scan stop request\r\n");
         result = ble_scanner_stop();
+        /* SAM | 2026-11-07 12:17 +08:00 | A manual stop releases its request; the SDK result remains visible below. */
+        yp_scan_sched_radio_hold(YP_SCAN_HOLD_MANUAL, false);
     } else {
         cli_printf("Usage: ble_scan [start|stop]\r\n");
         return -1;

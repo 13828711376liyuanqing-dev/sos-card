@@ -17,6 +17,11 @@
 #define YP_SCAN_POLL_INTERVAL_MS   30U  /* 调度/逐条发送：30ms/条，60 条约 1.8s 发完 */
 #define YP_TX_SEND_RETRY_COUNT     3U  /* 发送失败重试次数 */
 
+/* SAM | 2026-11-07 12:17 +08:00 | Foreground leases for shared SOS/find-device and manual scan requests. */
+#define YP_SCAN_HOLD_LOCATION 1U
+#define YP_SCAN_HOLD_MANUAL   2U
+void yp_scan_sched_radio_hold(uint8_t owner, bool hold);
+void yp_scan_sched_on_radio_stop(bool stopped);
 void yp_scan_sched_init(void);
 void yp_scan_sched_set_enabled(bool on);
 bool yp_scan_sched_enabled(void);

@@ -1,17 +1,17 @@
 {
   "schema": "YP001_SOURCE_UPLOAD_V1",
   "branch": "codex/integrate-svn-r88-20261107",
-  "purpose": "OUR-based SVN r88 incremental source candidate; batch 3 QP dialing display state",
+  "purpose": "OUR-based SVN r88 incremental source candidate; batch 4 shared periodic radio stop",
   "active_project": "ble_app_uart_c/Keil_6/YP001_GR5526.uvprojx",
   "sdk": "SDK 1.0.4",
   "cat1_root": "Air780EGH",
   "cat1_soc": "Air780EGH/soc/LuatOS-SoC_V2052_Air780EGH_113.soc",
   "source_identity": {
-    "version": "1.5.17",
-    "build": 21,
+    "version": "1.5.18",
+    "build": 22,
     "status": "SOURCE_CANDIDATE_NOT_BUILT_OR_FLASHED"
   },
-  "gr_fix_status": "OTA replay, SIP disconnect and SOS latch retained; QP dialing display state host passed",
+  "gr_fix_status": "Prior OTA/SIP/SOS/display fixes retained; shared radio stop host passed",
   "references": [
     {
       "path": "SDK/platform/arch/arm/cortex-m/keil/Startup.S",
@@ -245,8 +245,8 @@
     },
     {
       "path": "ble_app_uart_c/Src/user/cat1svr.c",
-      "git_blob": "38221382675d9e9d693bf1d051074e297293d806",
-      "sha256": "4a8f09c20cd189fbc30572c0232a174fd7122d9a55583b2bd2027e3a90ca2b51"
+      "git_blob": "fc3b05c38bd254fea21b13d95b8c4d2a0c110462",
+      "sha256": "1627357fc0a0fcc461500048fd664e5eb71cecbff9631ac0448263d952878813"
     },
     {
       "path": "ble_app_uart_c/Src/external/cJSON-1.7.19/cJSON.c",
@@ -395,8 +395,8 @@
     },
     {
       "path": "ble_app_uart_c/Src/user/user_app.c",
-      "git_blob": "a9c4706db77a68ecdf9085abef8d1a52db5a960d",
-      "sha256": "cafc879697015e1b5b72fe54680687f9d1922a5abf0ffd347b138a3800c93e58"
+      "git_blob": "dd818a53d24ed124682906fe53e9d7ed31198be4",
+      "sha256": "44f96a5fbe1ae0b1fb6085e6129a1088b99f202d39aa6d2c3424252e486b22dc"
     },
     {
       "path": "ble_app_uart_c/Src/platform/user_periph_setup.c",
@@ -485,8 +485,8 @@
     },
     {
       "path": "ble_app_uart_c/Src/user/yp001_scan_sched.c",
-      "git_blob": "fc6e3757a2e7cd4bbcf17d73731ace1f226471b2",
-      "sha256": "ea786e94809d91ac4a38f2b993d805e1b1711c607fb1c44c8b72232f07057be7"
+      "git_blob": "1c5f37b6ccc6cb5fafcea7c3900eaf318ac56ea9",
+      "sha256": "d6293a9a3ecc397213d3e522ad342fc030d8f8278baa63f38c613c7971b3cdb1"
     },
     {
       "path": "ble_app_uart_c/Src/external/lvgl_8.3.1/src/core/lv_disp.c",

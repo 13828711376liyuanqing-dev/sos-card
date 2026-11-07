@@ -24,6 +24,11 @@ void cat1_printf(const char *fmt, ...);
 static bool s_enabled = true;
 static bool s_active;                      /* 周期扫描循环运行中(运动触发) */
 static bool s_scanning;                    /* 当前扫描窗口进行中 */
+/* SAM | 2026-11-07 12:17 +08:00 | Preserve explicit radio users across scheduler reinit; a deferred stop waits for their release. */
+static volatile uint8_t s_radio_holds;
+static bool s_stop_deferred;
+static volatile bool s_radio_stop_pending;
+static volatile bool s_radio_restart_due;
 static uint8_t s_fail_streak;              /* 连续失锁次数 */
 static uint8_t s_interval_min;             /* 当前扫描间隔(分钟)，退避 1..5 */
 static uint32_t s_scan_start_ms;           /* 当前扫描窗口起始(单调时钟) */
@@ -106,7 +111,8 @@ static void clear_history(void)
 static void start_scan(uint32_t now_ms)
 {
     sdk_err_t rc;
-    
+    /* SAM | 2026-11-07 12:18 +08:00 | A stop return only accepts the request; wait for the actual BLE event before restarting. */
+    if (s_radio_stop_pending) { s_next_attempt_ms = now_ms + 1000U; return; }
     rc = ble_scanner_start();
     cli_printf("[SCAN_SCHED] ble_scanner_start 0x%04X\r\n",
                (unsigned)rc);
@@ -124,17 +130,52 @@ static void start_scan(uint32_t now_ms)
     __enable_irq();
 }
 
+/* SAM | 2026-11-07 12:17 +08:00 | Shared location/manual leases prevent a periodic stop from interrupting another radio user. */
+void yp_scan_sched_radio_hold(uint8_t owner, bool hold)
+{
+    if (hold) s_radio_holds |= owner;
+    else s_radio_holds &= (uint8_t)~owner;
+}
+
+/* SAM | 2026-11-07 12:18 +08:00 | Only a successful controller stop event releases the asynchronous stop barrier. */
+void yp_scan_sched_on_radio_stop(bool stopped)
+{
+    if (stopped) {
+        if (s_radio_stop_pending && s_radio_holds) s_radio_restart_due = true;
+        s_radio_stop_pending = false;
+    }
+}
+
+/* SAM | 2026-11-07 12:19 +08:00 | A user arriving during an accepted stop resumes scanning in foreground after its completion event. */
+static void radio_restart_poll(void)
+{
+    if (s_radio_restart_due) {
+        s_radio_restart_due = false;
+        if (s_radio_holds) {
+            sdk_err_t rc = ble_scanner_start();
+            cli_printf("[SCAN_SCHED] shared restart request 0x%04X\r\n", (unsigned)rc);
+        }
+    }
+}
+
 static void stop_scan(void)
 {
-    sdk_err_t rc = BLE_SUCCESS;
-    
+    sdk_err_t rc;
     if (s_scanning) {
-        //rc = ble_scanner_stop();
         s_scanning = false;
+        s_stop_deferred = true;
     }
+    if (!s_stop_deferred || s_radio_stop_pending || s_radio_holds ||
+        yp_business_status()->alarm_active || ble_phone_connected()) return;
+    /* SAM | 2026-11-07 12:17 +08:00 | End the logical window separately from the asynchronous radio stop request. */
+    s_stop_deferred = false;
+    s_radio_stop_pending = true;
+    rc = ble_scanner_stop();
     if (rc != BLE_SUCCESS) {
-        cli_printf("[SCAN_SCHED] ble_scanner_stop failed 0x%04X\r\n",
-                   (unsigned)rc);
+        s_radio_stop_pending = false;
+        cli_printf("[SCAN_SCHED] ble_scanner_stop failed 0x%04X\r\n", (unsigned)rc);
+    } else {
+        cli_printf("[SCAN_SCHED] stop requested; await BLE scan-stop event\r\n");
     }
 }
 
@@ -381,6 +422,9 @@ void yp_scan_sched_poll(uint32_t now_ms)
         }
     }
 
+    /* SAM | 2026-11-07 12:17 +08:00 | Finish a postponed radio stop even after the periodic scheduler is disabled. */
+    radio_restart_poll();
+    if (s_stop_deferred) { stop_scan(); return; }
     if (!s_enabled) return;
 
     b = yp_business_status();

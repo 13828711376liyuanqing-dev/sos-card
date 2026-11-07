@@ -1,13 +1,13 @@
 # 本次 Git 上传
 
-本地候选分支：`codex/version-protection-20261107`。远端沿用原 GitHub origin；没有代为推送、拉取或改动远端。
+本地候选分支：`codex/integrate-svn-r88-20261107`。远端沿用原 GitHub origin；没有代为推送、拉取或改动远端。
 
 ## 现在怎样上传
 
 在 `D:\CODEX\sos-card` 执行：
 
 ```powershell
-git push -u origin codex/version-protection-20261107
+git push -u origin codex/integrate-svn-r88-20261107
 ```
 
 也可在 Git 客户端直接推送当前分支。当前提交已经选好范围，无需把所有未跟踪文件再次全选提交。Git LFS pre-push钩子会随这次手动推送发送已登记二进制对象；认证仍由你本机Git客户端处理，本轮未验证远程登录或推送成功。
@@ -22,7 +22,7 @@ Git LFS管理库、SOC和必要工具二进制；源文件保持现有换行字�
 
 ## 版本与验证边界
 
-这是当前源码候选，不是新编译的固件。GR重复ACTIVATE修复只通过主机回归，未执行本轮Keil F7或烧写；后续要发布新内容时必须使用唯一新版本/build，不覆盖b18身份。当前SDK源码的版本指纹与本地冻结记录可追溯，但历史b18完整构建输入source_alignment仍pending，不能因上传Git变成实板/生产验收通过。
+这是当前源码候选，不是新编译的固件。本批源码候选为1.5.15/b19，新增GR SIP断开收尾；GR重复ACTIVATE修复及本项均尚未完成本批Keil F7/实板验证；后续要发布新内容时必须使用唯一新版本/build，不覆盖b18身份。当前SDK源码的版本指纹与本地冻结记录可追溯，但历史b18完整构建输入source_alignment仍pending，不能因上传Git变成实板/生产验收通过。
 
 控制工具/资料已有独立提交997420d、b5e2d69；本次源码另外提交。旧工作区的3项历史删除和未选本地资料保留，不执行reset/restore覆盖你的现场。
 

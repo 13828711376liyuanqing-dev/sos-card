@@ -1,17 +1,17 @@
 {
   "schema": "YP001_SOURCE_UPLOAD_V1",
-  "branch": "codex/version-protection-20261107",
-  "purpose": "Source candidate checkpoint for user-controlled Git upload",
+  "branch": "codex/integrate-svn-r88-20261107",
+  "purpose": "OUR-based SVN r88 incremental source candidate; batch 1 SIP disconnect only",
   "active_project": "ble_app_uart_c/Keil_6/YP001_GR5526.uvprojx",
   "sdk": "SDK 1.0.4",
   "cat1_root": "Air780EGH",
   "cat1_soc": "Air780EGH/soc/LuatOS-SoC_V2052_Air780EGH_113.soc",
   "source_identity": {
-    "version": "1.5.14",
-    "build": 18,
-    "status": "SOURCE_CANDIDATE_NOT_NEW_BUILT_FIRMWARE"
+    "version": "1.5.15",
+    "build": 19,
+    "status": "SOURCE_CANDIDATE_NOT_BUILT_OR_FLASHED"
   },
-  "gr_fix_status": "host_only_not_keil_built_not_flashed",
+  "gr_fix_status": "OTA replay fix plus SIP disconnect source/host only",
   "references": [
     {
       "path": "SDK/platform/arch/arm/cortex-m/keil/Startup.S",
@@ -245,8 +245,8 @@
     },
     {
       "path": "ble_app_uart_c/Src/user/cat1svr.c",
-      "git_blob": "d44639359dd2c989ce200311f4cfa991f3c2bf16",
-      "sha256": "462471a312dca17c679f82906c2675a2344a7d3272ae28c8a07b1bc645a73ac5"
+      "git_blob": "335fec2f713c96418d150e4c94b030bc76041379",
+      "sha256": "b90d144cdcd4b049abd7507723ab886256f966295e010d411631aaac8816f85b"
     },
     {
       "path": "ble_app_uart_c/Src/external/cJSON-1.7.19/cJSON.c",
@@ -1547,5 +1547,6 @@
   "all_306_references_in_git": true,
   "baseline_registry": "tools/version_control/baselines.json",
   "device_data_and_keys": "excluded; local freeze/evidence not uploaded",
-  "tool_rebuild_dependencies": "Pinned vendor binaries/Lua retained; host Python/.NET/Keil/J-Link installed separately; approved signing key pair remains local"
+  "tool_rebuild_dependencies": "Pinned vendor binaries/Lua retained; host Python/.NET/Keil/J-Link installed separately; approved signing key pair remains local",
+  "parent_checkpoint": "9dbf0fbf5a448208b8f3b0c73d4ce7811220f0d8"
 }

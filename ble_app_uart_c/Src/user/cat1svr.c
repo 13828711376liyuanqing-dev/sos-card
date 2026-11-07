@@ -1281,6 +1281,8 @@ QState Cat_Sip_connected(Cat_Sip * const me, QEvt const * const e) {
             break;
         }
         
+        // SAM | 2026-11-07 10:58 +08:00 | Handle SIP disconnect because VoIP call end must leave connected state.
+        case SIP_DISCONNECT_SIG:
         case CC_DISCONNECT_SIG: {
 			printf("Cat_Sip_connected CC_DISCONNECT_SIG");
             status_ = Q_TRAN(&Cat_Sip_idle);

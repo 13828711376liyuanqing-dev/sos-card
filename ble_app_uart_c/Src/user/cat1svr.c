@@ -1159,6 +1159,8 @@ QState Cat_Sip_dail(Cat_Sip * const me, QEvt const * const e) {
         
         case Q_ENTRY_SIG: {
             cli_execute_string("at SIP_DIAL");
+            /* SAM | 2026-11-07 11:57 +08:00 | QP starts this dial outside CAT1 business_core, so publish its dialing state to the UI. */
+            yp_business_call_set(YP_CALL_DIALING);
             printf("Cat_Sip_dail");
             status_ = Q_HANDLED();
             break;

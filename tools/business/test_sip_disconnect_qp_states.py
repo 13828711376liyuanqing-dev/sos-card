@@ -38,6 +38,11 @@ def main():
     qep.write_bytes((QPC / 'src/qf/qep_hsm.c').read_bytes())
     preamble = r'''
 #include "qp_port.h"
+/* SAM | 2026-11-07 11:57 +08:00 | Link the real business state so QP dialing must reach the screen revision without clearing SOS. */
+#define main name_fixture_main
+#include "test_name_push.c"
+#undef main
+#undef CHECK
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -65,16 +70,22 @@ static void dispatch(Cat_Sip *me, unsigned sig) {
     QHsm_dispatch_(&me->super.super, &e, 0U);
 }
 static void connected(Cat_Sip *me) {
+    uint32_t revision = yp_business_status()->revision;
+    yp_call_t previous = yp_business_status()->call;
     Cat_Sip_ctor(me);
     QHsm_init_(&me->super.super, NULL, 0U);
     dispatch(me, SIP_DAIL_SIG);
     CHECK(commands == 1U && strcmp(last_command, "at SIP_DIAL") == 0);
+    CHECK(yp_business_status()->call == YP_CALL_DIALING);
+    CHECK(yp_business_status()->revision == revision + (previous != YP_CALL_DIALING));
     dispatch(me, CC_SPEECH_START_SIG);
     CHECK(QHsm_state(&me->super) == Q_STATE_CAST(&Cat_Sip_connected));
     commands = 0U;
 }
 int main(void) {
     Cat_Sip me;
+    yp_business_init();
+    CHECK(yp_business_start_alarm());
     /* SAM | 2026-11-07 11:04 +08:00 | A remote end must work without a preceding local hangup. */
     connected(&me);
     dispatch(&me, SIP_DISCONNECT_SIG);
@@ -116,7 +127,21 @@ int main(void) {
     dispatch(&me, CAT1_TIMEOUT_SIG);
     CHECK(QHsm_state(&me.super) == Q_STATE_CAST(&Cat_Sip_idle));
     CHECK(commands == 0U);
-    puts("PASS actual Cat_Sip states + real QPC: SIP/CC disconnect, hangup command, no redial, timeout, unrelated delegation.");
+    /* Actual CAT1 BUS_EVT delivery owns incoming/connected/ended states. */
+    char const *states[] = {"incoming", "connected", "ended", "failed"};
+    yp_call_t const values[] = {YP_CALL_INCOMING, YP_CALL_CONNECTED, YP_CALL_ENDED, YP_CALL_FAILED};
+    for (unsigned i = 0; i < 4U; ++i) {
+        char frame[100];
+        int n = snprintf(frame, sizeof(frame), "BUS_EVT={\"op\":\"call\",\"state\":\"%s\"}", states[i]);
+        uint32_t revision = yp_business_status()->revision;
+        CHECK(yp_business_handle_line(frame, (size_t)n));
+        CHECK(yp_business_status()->call == values[i]);
+        CHECK(yp_business_status()->revision == revision + 1U);
+        CHECK(yp_business_status()->alarm_active);
+        CHECK(yp_business_handle_line(frame, (size_t)n));
+        CHECK(yp_business_status()->revision == revision + 1U);
+    }
+    puts("PASS actual QPC + business: dialing revision, received call states, duplicate revision, alarm retained, SIP/CC disconnect, hangup, no redial, timeout.");
     return 0;
 }
 '''
@@ -130,8 +155,15 @@ int main(void) {
     for mode in ('sip', 'cc'):
         exe = out / (mode + '_states.exe')
         command = [str(gcc), '-std=c11', '-Wall', '-Wextra', '-Werror',
-                   '-Wno-unused-parameter', '-I' + str(out), '-I' + str(QPC / 'include'),
-                   str(unit), str(qep), '-o', str(exe)]
+                   '-Wno-unused-parameter', '-Wno-error=unused-variable', '-DYP_BUSINESS_HOST_TEST',
+                   '-I' + str(out), '-I' + str(QPC / 'include')]
+        command += ['-I' + str(ROOT / p) for p in ('tools/name_push', 'tools/name_push/stubs',
+                    'ble_app_uart_c/Src/user/business', 'ble_app_uart_c/Src/external/cJSON-1.7.19')]
+        command += [str(unit), str(qep)]
+        command += [str(ROOT / p) for p in ('ble_app_uart_c/Src/user/business/yp001_business.c',
+                    'ble_app_uart_c/Src/user/business/yp_name_glyphs.c',
+                    'ble_app_uart_c/Src/external/cJSON-1.7.19/cJSON.c')]
+        command += ['-o', str(exe)]
         if mode == 'cc':
             command.append('-DCC_CALL')
         build = subprocess.run(command, env=env, capture_output=True, timeout=60)

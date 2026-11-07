@@ -65,6 +65,8 @@ bool yp_business_port_sos(bool start);
 bool yp_business_sos_start_allowed(void);
 void yp_business_sos_stopped(void);
 void yp_business_cancel_alarm(void); /* Internal entry only: gesture/platform field unconfirmed. */
+/* SAM | 2026-11-07 11:57 +08:00 | Foreground call state update for QP and validated CAT1 events. */
+void yp_business_call_set(yp_call_t state);
 void yp_business_call_action(bool accept);
 void yp_business_show_time(bool enabled);
 bool yp_business_set_resident(const char *name, const char *room, const char *campus);

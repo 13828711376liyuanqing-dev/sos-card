@@ -383,6 +383,10 @@ void yp_business_cancel_alarm(void) {
         notice("ALARM CANCELLING"); changed();
     }
 }
+/* SAM | 2026-11-07 11:57 +08:00 | Share QP and CAT1 display state updates because call completion must preserve the alarm. */
+void yp_business_call_set(yp_call_t state) {
+    if (s.call != state) { s.call=state; changed(); }
+}
 void yp_business_call_action(bool accept) { call_request=((call_request+4U)&~3U)|(accept ? 1U:2U); }
 void yp_business_show_time(bool enabled) {
     if (s.show_time != enabled) { s.show_time=enabled; changed(); }
@@ -670,7 +674,8 @@ bool yp_business_handle_line(const char *line,size_t length) {
     } else if (!strcmp(op,"call") && value) {
         static const char *names[]={"idle","dialing","incoming","connected","ended","failed","unknown"};
         for (unsigned i=0;i<7;++i) if (!strcmp(value,names[i])) {
-            if (s.call!=(yp_call_t)i) { s.call=(yp_call_t)i; changed(); }
+            /* SAM | 2026-11-07 11:57 +08:00 | Use the same revision update for received call states and QP dialing. */
+            yp_business_call_set((yp_call_t)i);
             last_rx=s.now_ms; break;
         }
     } else if (!strcmp(op,"network") && value) {

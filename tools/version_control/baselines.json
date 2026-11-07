@@ -65,9 +65,19 @@
       "directory": "firmware_releases/candidates/svn_r88_scan_stop_20261107",
       "manifest_sha256": "966b868c5cde76fc37b1bb948081a00bfdb817d5dfc1b1fc491e9ee07b16288a",
       "parent_source_commit": "7d30b25016e5d5334928aac653f0560540ef873f",
-      "status": "SOURCE_HOST_PASS_NOT_BUILT_NOT_FLASHED",
+      "status": "BUILD_FLASH_COMM_PASS_SCAN_CONTROL_FAILED",
       "release_identity": "CANDIDATE_1.5.18_b22_NOT_BUILT",
-      "accepted_function": "Adapt donor periodic radio stop with shared location/manual leases, alarm/phone guards, actual BLE stop completion barrier and handoff restart"
+      "accepted_function": "Adapt donor periodic radio stop with shared location/manual leases, alarm/phone guards, actual BLE stop completion barrier and handoff restart",
+      "physical_scan_acceptance": "FAIL_START_AND_STOP_SDK_DISALLOWED",
+      "evidence": "logs/svn_integration_20261107/board_b22/scan_accelerated.json"
+    },
+    {
+      "candidate_id": "SVN_R88_BLE_IRQ_1.5.19_b23_20261107",
+      "directory": "firmware_releases/candidates/svn_r88_ble_irq_20261107",
+      "manifest_sha256": "c6cdfec707fe66421aac8d7837782f1bffc73a600aca2fe24999fa65686967e1",
+      "parent_source_commit": "d661fe3894dfc6178502fa2cba65fbcf1e0f3698",
+      "status": "SOURCE_HOST_PASS_NOT_BUILT_NOT_FLASHED",
+      "release_identity": "CANDIDATE_1.5.19_b23_NOT_BUILT"
     }
   ],
   "incomplete_directories": [

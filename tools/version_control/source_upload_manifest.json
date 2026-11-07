@@ -1,17 +1,17 @@
 {
   "schema": "YP001_SOURCE_UPLOAD_V1",
   "branch": "codex/integrate-svn-r88-20261107",
-  "purpose": "OUR-based SVN r88 incremental source candidate; batch 4 shared periodic radio stop",
+  "purpose": "OUR-based SVN r88 batch4 scan control followup; SDK IRQ mask contract correction",
   "active_project": "ble_app_uart_c/Keil_6/YP001_GR5526.uvprojx",
   "sdk": "SDK 1.0.4",
   "cat1_root": "Air780EGH",
   "cat1_soc": "Air780EGH/soc/LuatOS-SoC_V2052_Air780EGH_113.soc",
   "source_identity": {
-    "version": "1.5.18",
-    "build": 22,
+    "version": "1.5.19",
+    "build": 23,
     "status": "SOURCE_CANDIDATE_NOT_BUILT_OR_FLASHED"
   },
-  "gr_fix_status": "Prior OTA/SIP/SOS/display fixes retained; shared radio stop host passed",
+  "gr_fix_status": "Shared stop b22 real-device refused; IRQ priority correction host passed, board pending",
   "references": [
     {
       "path": "SDK/platform/arch/arm/cortex-m/keil/Startup.S",
@@ -240,8 +240,8 @@
     },
     {
       "path": "ble_app_uart_c/Src/platform/bsp.c",
-      "git_blob": "d5d61fc1a75d0ec8cd4feb61dd9dc17b89890393",
-      "sha256": "61d630d2563cd219c708ddb6e615bdecb3b64521d333101a24cf5f615516ea6c"
+      "git_blob": "2b4f8f48e4a34253f2a177b45a66835f33ed655f",
+      "sha256": "3a34e7de25ffedca05dc3b2da087c6f106edd823c82c4fc86491facd79a1b08b"
     },
     {
       "path": "ble_app_uart_c/Src/user/cat1svr.c",

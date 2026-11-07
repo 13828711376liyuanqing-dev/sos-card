@@ -895,6 +895,8 @@ void QF_onStartup(void) {
     /* SAM | 2026-10-09 16:31 +08:00 | Use tested 0x7F SysTick priority because
      * 0x3F caused qv_port assertion 110 during runtime EPD refresh. */
     NVIC_SetPriority(SysTick_IRQn, 0x7FU);
+    /* SAM | 2026-11-07 12:53 +08:00 | ROM masks at BLE priority + 2 with group 0; keep SDK scheduling below that threshold after QP defaults. */
+    NVIC_SetPriority(BLE_SDK_IRQn, QF_AWARE_ISR_CMSIS_PRI + 2U);
 }
 //............................................................................
 void QF_onCleanup(void) {

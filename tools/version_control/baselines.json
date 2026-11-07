@@ -30,9 +30,20 @@
       "manifest_sha256": "8ad2d28f87113f9d7b44b9fbb5c0a3067a8a12bbcc67a03022bc043143e82287",
       "parent_source_commit": "9dbf0fbf5a448208b8f3b0c73d4ce7811220f0d8",
       "branch": "codex/integrate-svn-r88-20261107",
+      "status": "BUILD_FLASH_STARTUP_COMM_PASS_SIP_UNTESTED",
+      "release_identity": "GR_1.5.15_b19_CAT1_RUNTIME_1.5.14",
+      "accepted_function": "Cat_Sip_connected handles SIP_DISCONNECT_SIG through existing idle transition",
+      "startup_evidence": "logs/svn_integration_20261107/board_b19/startup_verification.json",
+      "physical_sip_acceptance": "PENDING_NO_TEST_CONDITIONS_USER_ACCEPTED_COMM_CHECK"
+    },
+    {
+      "candidate_id": "SVN_R88_SOS_LATCH_1.5.16_b20_20261107",
+      "directory": "firmware_releases/candidates/svn_r88_sos_latch_20261107",
+      "manifest_sha256": "8300f8035a581c91cc36e2a7d16db1577b0c85a011d9f9bb33c514759180b499",
+      "parent_source_commit": "3c622b2260b78a7b8eb9952dc1fbf391442f8675",
       "status": "SOURCE_HOST_PASS_NOT_BUILT_NOT_FLASHED",
-      "release_identity": "CANDIDATE_1.5.15_b19_NOT_BUILT",
-      "accepted_function": "Cat_Sip_connected handles SIP_DISCONNECT_SIG through existing idle transition"
+      "release_identity": "CANDIDATE_1.5.16_b20_NOT_BUILT",
+      "accepted_function": "One SOS request per debounced held chord; rearm on release; keep OUR mailbox and call handling"
     }
   ],
   "incomplete_directories": [

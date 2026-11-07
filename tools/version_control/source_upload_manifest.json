@@ -1,17 +1,17 @@
 {
   "schema": "YP001_SOURCE_UPLOAD_V1",
   "branch": "codex/integrate-svn-r88-20261107",
-  "purpose": "OUR-based SVN r88 incremental source candidate; batch 1 SIP disconnect only",
+  "purpose": "OUR-based SVN r88 incremental source candidate; batch 2 held SOS chord latch",
   "active_project": "ble_app_uart_c/Keil_6/YP001_GR5526.uvprojx",
   "sdk": "SDK 1.0.4",
   "cat1_root": "Air780EGH",
   "cat1_soc": "Air780EGH/soc/LuatOS-SoC_V2052_Air780EGH_113.soc",
   "source_identity": {
-    "version": "1.5.15",
-    "build": 19,
+    "version": "1.5.16",
+    "build": 20,
     "status": "SOURCE_CANDIDATE_NOT_BUILT_OR_FLASHED"
   },
-  "gr_fix_status": "OTA replay fix plus SIP disconnect source/host only",
+  "gr_fix_status": "OTA replay fix and SIP disconnect retained; held SOS chord latch host passed",
   "references": [
     {
       "path": "SDK/platform/arch/arm/cortex-m/keil/Startup.S",
@@ -410,8 +410,8 @@
     },
     {
       "path": "ble_app_uart_c/Src/user/business/yp001_business.c",
-      "git_blob": "83928f0fd1867581e9d66e44933e61ed4fe289c2",
-      "sha256": "9e9bd095018ff1e8ba3913640f38d2fcf30fb5ae5b77adde5c88a27b6f48cbbd"
+      "git_blob": "44f29ccf23fe4df5d1f5a7910bdce277304ea2f2",
+      "sha256": "8d33d630372e26982cc2e00deb529f3880a7731fea397669002b1f72231f6673"
     },
     {
       "path": "ble_app_uart_c/Src/user/business/yp_name_glyphs.c",

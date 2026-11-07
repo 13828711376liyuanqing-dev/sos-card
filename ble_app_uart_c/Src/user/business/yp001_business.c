@@ -73,6 +73,8 @@ static volatile bool s_key_settle_req;           /* chord ready for the UI */
 
 static uint32_t s_left_ms = KEY_IDLE_MS, s_right_ms = KEY_IDLE_MS;
 static uint32_t sos_ms = KEY_IDLE_MS;
+/* SAM | 2026-11-07 11:39 +08:00 | Latch a held SOS chord until release because cancellation must not rearm the same press. */
+static bool sos_segment_latched;
 /* SAM | 2026-11-06 +08:00 | One press of the left or right key answers an incoming call / hangs up a dialing or connected one. */
 static yp_keycall_t s_keycall;
 static bool s_left_raw, s_right_raw;       /* previous 10ms sample */
@@ -235,6 +237,8 @@ void yp_business_init(void) {
     hello_due=true; last_hello=last_rx=last_alarm=clock_ms=0;
     key_requests=consumed_keys=0; call_request=consumed_call=0; last_cancel=0;
     s_left_ms=s_right_ms=sos_ms=KEY_IDLE_MS;
+    /* SAM | 2026-11-07 11:39 +08:00 | Clear the chord latch with the key sampler at initialization. */
+    sos_segment_latched=false;
     yp_keycall_init(&s_keycall);
     s_key_buf[0]='\0'; s_last_release_ms=KEY_IDLE_MS; s_key_settle_req=false;
     s_left_raw=s_right_raw=false; s_left_stable=s_right_stable=false;
@@ -280,22 +284,23 @@ void yp_business_keys(bool left, bool right, uint32_t now) {
         s_last_release_ms = KEY_IDLE_MS; /* latch once until the UI takes it */
     }
 
-    /* SOS both-key gestures. */
+    /* SAM | 2026-11-07 11:39 +08:00 | Adapt the donor latch to our sequence mailbox and debounced key levels. */
     if (left && right) {
         if (s_left_ms != KEY_IDLE_MS && s_right_ms != KEY_IDLE_MS) {
             uint32_t press_lag = (s_left_ms > s_right_ms) ?
                                  (s_left_ms - s_right_ms) : (s_right_ms - s_left_ms);
             if (press_lag <= UI_SOS_LAG_MS) {
                 if (sos_ms == KEY_IDLE_MS) sos_ms = now;
-                else if ((uint32_t)(now - sos_ms) >= 2800U) {
-                    sos_ms = KEY_IDLE_MS; ++key_requests;
+                else if (!sos_segment_latched && (uint32_t)(now - sos_ms) >= 2800U) {
+                    sos_segment_latched = true; ++key_requests;
                 }
             } else {
                 sos_ms = KEY_IDLE_MS;
             }
         }
-    } else if (sos_ms != KEY_IDLE_MS) {
+    } else {
         sos_ms = KEY_IDLE_MS;
+        sos_segment_latched = false;
     }
 
     /* Left release: one tap appended as 'L'. */

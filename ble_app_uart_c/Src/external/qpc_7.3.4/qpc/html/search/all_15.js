@@ -1,0 +1,25 @@
+var searchData=
+[
+  ['language_20standard_0',['ISO-C99 Language Standard',['../csc_gep.html#csc_c99',1,'']]],
+  ['level_20response_1',['Level Response',['../srs_qk.html#srs_qk-rt',1,'Task-Level Response'],['../srs_qxk.html#srs_qxk-rt',1,'Task-Level Response']]],
+  ['level_20response_20in_20qv_2',['Task-Level Response in %QV',['../srs_qv.html#srs_qv-rt',1,'']]],
+  ['library_3',['Framework, NOT a Library',['../srs_over.html#srs_over_frame',1,'']]],
+  ['licensed_4',['How is it licensed?',['../index.html#over_licensing',1,'']]],
+  ['lin_20bat_20batch_20file_5',['The lin.bat batch file',['../csc_gep.html#csc_pclp-lin',1,'']]],
+  ['lint_20plus_6',['PC-Lint-Plus',['../ports_lint.html',1,'ports']]],
+  ['lint_20plus_20options_20for_20qp_20c_7',['Structure of PC-Lint-Plus Options for QP/C',['../ports_lint.html#lint_options',1,'']]],
+  ['linting_20qp_20c_20application_20code_8',['Linting QP/C Application Code',['../ports_lint.html#lint_app',1,'']]],
+  ['linting_20the_20qp_20c_20source_20code_9',['Linting the QP/C Source Code',['../ports_lint.html#lint_qp',1,'']]],
+  ['lnt_20option_20file_10',['Lnt option file',['../ports_lint.html#lint_qp_lnt',1,'The qpc.lnt option file'],['../ports_lint.html#lint_std_lnt',1,'The std.lnt option file']]],
+  ['lnt_20plcp_20file_11',['Lnt PLCP file',['../csc_gep.html#csc_pclp-options',1,'The options.lnt PLCP file'],['../csc_gep.html#csc_pclp-qpc',1,'The qpc.lnt PLCP file'],['../csc_gep.html#csc_pclp-std',1,'The std.lnt PLCP file']]],
+  ['loc_12',['loc',['../struct_q_s___filter.html#aeaa7633e26c2561664e354405dadf5f2',1,'QS_Filter']]],
+  ['local_20filter_13',['Local Filter',['../sds_qs.html#qs_local',1,'']]],
+  ['locating_20a_20topic_20of_20interest_14',['Quickly Locating a Topic of Interest',['../help.html#help_random',1,'']]],
+  ['lockceil_15',['lockCeil',['../struct_q_k___attr.html#a1079f4e9f5b1305ec44e54b07321bb11',1,'QK_Attr::lockCeil'],['../struct_q_x_k___attr.html#aaae7b75d662c732bd8e7dd6c468b7497',1,'QXK_Attr::lockCeil']]],
+  ['lockceil_5fdis_16',['lockCeil_dis',['../struct_q_k___attr.html#ad6ef4cffad408f91b8f0998a779abaa5',1,'QK_Attr']]],
+  ['lockholder_17',['lockHolder',['../struct_q_x_k___attr.html#a8ced253546a3a9762a006779fd29cad7',1,'QXK_Attr']]],
+  ['locking_18',['Locking',['../srs_qk.html#srs_qk-lock',1,'Selective Scheduler Locking'],['../srs_qxk.html#srs_qxk-lock',1,'Selective Scheduler Locking']]],
+  ['low_20power_20architecture_19',['Low Power Architecture',['../srs_ao.html#srs_ao-power',1,'']]],
+  ['low_20power_20code_20',['The Low-Power Code',['../tut_low.html#tut_low-code',1,'']]],
+  ['low_20power_20example_21',['Low-Power Example',['../tut_low.html',1,'gs_tut']]]
+];

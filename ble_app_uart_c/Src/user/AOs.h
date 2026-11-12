@@ -120,7 +120,7 @@ typedef struct {
 
 
     int  CmdType;
-    char call_out[20];
+    char call_out[33]; /* SAM | 2026-11-07 +08:00 | Match the existing CAT1 32-character phone contract. */
 	char call_in[5][20];
 } ParaBindMsg_t;
 
@@ -128,9 +128,9 @@ extern ParaConfig_t g_config;
 extern ParaBindMsg_t g_bind_msg;
 
 
-// 串口发送完成事件（纯通知，可用基础QEvt�?// 串口错误事件（纯通知�?//
+// 串口发送完成事件（纯通知，可用基础QEvt�?// 串口错误事件（纯通知�?//
 
-// app.h �?clock.h 中的事件结构定义
+// app.h �?clock.h 中的事件结构定义
 
 
 
@@ -212,8 +212,7 @@ QState LocaSvr_SOSKeyPressed(LocaSvr * const me, QEvt const * const e);
 QState LocaSvr_SOSKeyRPressed(LocaSvr * const me, QEvt const * const e);
 #endif // ((TK_Board_1_1_UART_DBG == 1)||(TK_Board_PAD_UART_DBG == 1))
 QState LocaSvr_SOS_KEY_OK(LocaSvr * const me, QEvt const * const e);
-/* SAM | 2026-11-06 +08:00 | Kept as in our verified cat1svr.c (no argument) until the SOS merge with the colleague is decided. */
-void start_sos_process(void);
+void start_sos_process(bool bStart);
 
 
 #define CAT1_RX_BUF_LEN ((uint16_t)2048U)
@@ -303,7 +302,7 @@ typedef struct {
 	char IMSI[IMSI_BUF_LEN+1];
 	uint8_t rssi_bar;
 	uint8_t cat1_register;
-
+	uint8_t cat1_online;
 } Cat1Svr;
 
 // public:

@@ -77,6 +77,12 @@ def main():
             fault(s)
             code, log = run(s, tmp / ('out_' + name), '--vendor', s / 'vendor_luac')
             assert code == 1 and 'ERROR' in log and not (tmp / ('out_' + name) / 'USB_IMPORT').exists(), (name, log)
+        # 3b. SAM | 2026-11-08 +08:00 | self-test import: zero MD5 cannot start an OTA, so a range that differs from the version only warns
+        s = copy_source('zero_md5_range')
+        edit(s / 'main.lua', "OTA_TRIAL_MD5='18ada1de6be255ff0a8f60da2e995c77'", "OTA_TRIAL_MD5='00000000000000000000000000000000'")
+        edit(s / 'main.lua', "OTA_TRIAL_SOURCE='1.5.10'", "OTA_TRIAL_SOURCE='1.5.7'")
+        code, log = run(s, tmp / 'out_zero_md5_range', '--vendor', s / 'vendor_luac')
+        assert code == 0 and 'WARN' in log and '不能发起 OTA' in log and (tmp / 'out_zero_md5_range/USB_IMPORT').exists(), log
         # 4. luac must be the verified one
         (tool / 'luac_64bit.exe').write_bytes(b'MZ')
         code, log = run(SRC, tmp / 'badluac')

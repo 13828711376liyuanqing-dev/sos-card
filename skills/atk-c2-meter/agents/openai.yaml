@@ -1,0 +1,4 @@
+interface:
+  display_name: "C2 电流电压采集"
+  short_description: "通过本机 USB C2 读取电流电压、连续记录并关联休眠调试窗口"
+  default_prompt: "使用 $atk-c2-meter 读取当前电压、电流，记录采样时间并报告结果。"

@@ -48,7 +48,7 @@ function M.new(port)
     local function valid_data(d)
         return type(d)=='table' and d.schema==1 and d.complete==true and
             (d.scope=='root_files_and_initialized_kv' or (p.allow_unavailable_kv==true and d.scope=='root_files_kv_unverified' and d.kv_unverified==true and d.keys==0 and
-            type(state.job)=='table' and state.job.source=='1.5.7' and state.job.version=='1.5.8')) and type(d.digest)=='string' and #d.digest==64 and not d.digest:find('[^0-9a-f]') and
+            type(p.first_trial)=='table' and p.first_trial:scoped(state.job))) and type(d.digest)=='string' and #d.digest==64 and not d.digest:find('[^0-9a-f]') and
             type(d.files)=='number' and d.files>=0 and d.files<=128 and d.files%1==0 and
             type(d.keys)=='number' and d.keys>=0 and d.keys<=256 and d.keys%1==0
     end

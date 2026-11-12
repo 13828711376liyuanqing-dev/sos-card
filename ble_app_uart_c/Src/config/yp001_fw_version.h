@@ -1,10 +1,10 @@
-/* SAM | 2026-11-07 12:53 +08:00 | Release identity set by YpVersionTool 1.5.19/build 23; rebuild before use. */
+/* SAM | 2026-11-12 22:40 +08:00 | Diagnostic candidate 1.5.33/build37 because changed source needs a distinct image identity; rebuild before use. */
 /* SAM | 2026-11-03 +08:00 | Release 1.5.9/build 13: name glyph push + slim fixed fonts (font plan phase 1), OTA test on the new backend. */
 #ifndef YP001_FW_VERSION_H
 #define YP001_FW_VERSION_H
-#define YP001_FW_VERSION "001.005.019"
-#define YP001_PRODUCT_VERSION "1.5.19"
-#define YP001_FW_BUILD 23U
-#define YP001_FW_BUILD_TEXT "23"
+#define YP001_FW_VERSION "001.005.033"
+#define YP001_PRODUCT_VERSION "1.5.33"
+#define YP001_FW_BUILD 37U
+#define YP001_FW_BUILD_TEXT "37"
 #define YP001_FW_IDENTITY "YP001_FW|GR5526|" YP001_FW_VERSION "|" YP001_FW_BUILD_TEXT "|END"
 #endif

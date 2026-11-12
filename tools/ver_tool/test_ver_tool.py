@@ -48,6 +48,8 @@ def main():
         proj = tmp / 'proj'; cfg = proj / 'ble_app_uart_c/Src/config'; cfg.mkdir(parents=True); (proj / 'logs').mkdir()
         header = cfg / 'yp001_fw_version.h'; lua = proj / 'Air780EGH/main.lua'; lua.parent.mkdir()
         shutil.copy2(ROOT / 'ble_app_uart_c/Src/config/yp001_fw_version.h', header); shutil.copy2(ROOT / 'Air780EGH/main.lua', lua)
+        for extra in ('ota_trial.lua', 'ota_native_fota.lua'):        # SAM | 2026-11-08: the OTA range is set in all three files together
+            shutil.copy2(ROOT / 'Air780EGH' / extra, lua.parent / extra)
         shutil.copy2(ROOT / 'firmware_version.json', proj / 'firmware_version.json')
         # the test must not depend on which version the repository is at today: pin the copies to 1.5.2 / build 6
         import re
@@ -87,16 +89,31 @@ def main():
         assert '"release_version":  "1.5.3"' in j and '"gr_build":  7' in j and '"component_version":  "001.005.003"' in j, j
         old_lines = orig_l.decode('utf-8').splitlines()
         diff = [x for x in l.splitlines() if x not in old_lines]
-        assert len(diff) == 4, diff                                                            # only 3 identity lines + the stamp line differ
+        assert len(diff) == 4, diff                                                            # 3 identity lines + the stamp line; no device version given -> range untouched
+        # SAM | 2026-11-10 | OTA is ready from the factory: no OTA range / MD5 / device version lives in the source any more, so set touches only the identity
+        assert 'OTA_TRIAL' not in l and 'OTA_TRIAL' not in log and '范围' not in log, log
+        for extra in ('ota_trial.lua', 'ota_native_fota.lua'):
+            assert (lua.parent / extra).read_bytes() == (ROOT / 'Air780EGH' / extra).read_bytes(), extra
         backups = list((proj / 'logs/firmware_versions').glob('set_*'))
         assert len(backups) == 1 and (backups[0] / 'gr_version_before.h').read_bytes() == orig_h and (backups[0] / 'cat1_main_before.lua').read_bytes() == orig_l
         code, log = run('set', '--header', header, '--lua', lua, '--version', '1.5.3'); assert code == 0 and '没有改动' in log, log
+        # --from is gone (ignored with a note); a script that still carries the old three lines is told so and the tool leaves them alone
+        code, log = run('set', '--header', header, '--lua', lua, '--version', '1.5.3', '--from', '1.5.2')
+        assert code == 0 and '已经不需要' in log, log
+        clean = lua.read_bytes()
+        lua.write_bytes(clean + b"\r\nOTA_TRIAL_MD5='00000000000000000000000000000000'\r\nOTA_TRIAL_SOURCE='1.5.2'\r\nOTA_TRIAL_TARGET='1.5.3'\r\n")
+        code, log = run('set', '--header', header, '--lua', lua, '--version', '1.5.3')
+        assert code == 0 and '还留着' in log and "OTA_TRIAL_SOURCE='1.5.2'" in lua.read_text(encoding='utf-8'), log
+        lua.write_bytes(clean)
         code, log = run('set', '--header', header, '--lua', lua, '--version', '1.5.4', '--build', '9'); assert code == 0 and 'build 9' in log, log
 
         # 2. GR size / version checks (synthetic images carrying the version marker)
         # SAM | 2026-11-04 +08:00 | sizes follow the OTA red line (signed image <= 393216, yellow above 376832)
         good = tmp / 'good.hex'; good.write_text(ihex(image(370000)), encoding='ascii')
         code, log = run('check', '--gr', good, '--header', header)
+        # SAM | 2026-11-10 | the wording says which number is the Keil output and which is the signed image, and gives the CAT1 free-space THRESHOLD (not a device value)
+        assert '你选的是【Keil 编译出来的、还没签名的文件】' in log and '签名后才得到，这是预计值' in log and '正文 370000 + 签名尾部 904' in log, log
+        assert '门槛）≥ 403672 字节' in log and '不要把这个门槛当实际值填' in log, log
         assert code == 0 and '370000 字节' in log and '余 71464' in log and '离红线 22312' in log and '001.005.004' in log, log
         yellow = tmp / 'yellow.bin'; yellow.write_bytes(image(380000))
         code, log = run('check', '--gr', yellow); assert code == 0 and 'WARN' in log and '接近GR 签名镜像 380904' in log, log
@@ -113,24 +130,48 @@ def main():
         low = tmp / 'low.hex'; low.write_text(ihex(image(64), base=0x200000), encoding='ascii')
         code, log = run('check', '--gr', low); assert code == 1 and '应用区之前' in log, log
         code, log = run('check', '--gr', SIGNED_152)
-        assert code == 0 and '372064 字节' in log and '带签名尾部' in log and '001.005.010' in log and '离红线 20248' in log, log
+        assert code == 0 and '372064 字节' in log and '已签名的 .bin' in log and '正文 372064 + 签名尾部 904；已签名' in log and '001.005.010' in log and '离红线 20248' in log, log
         # 3. CAT1 script size through the sibling tool
         # SAM | 2026-11-04 +08:00 | the repo tree carries whatever trial range it was last packed with; use the pinned, board-verified 1.5.10 receiver
-        receiver = ROOT / 'firmware_releases/ota_1.5.9_to_1.5.10_20261104_1201/work/receiver_source'
+        # SAM | 2026-11-08 +08:00 | the 1.5.9 sample predates the 11-06 must-have (clear /log/ble.ini); use the board-verified 1.5.11 receiver like the other tests
+        receiver = ROOT / 'firmware_releases/ota_1.5.10_to_1.5.11_20261106_1531/work/receiver_source'
         code, log = run('check', '--cat1', receiver); assert code == 0 and '上限 524288' in log and 'CAT1 脚本' in log and 'CAT1 脚本红线 507904' in log, log
-        # 3b. a source that is the TARGET version of an upgrade package (PRODUCT_VERSION == OTA_TRIAL_TARGET) is checked as such and still reports its size
+        # 3b. SAM | 2026-11-10 | a new-style source (no OTA_TRIAL lines) is checked plainly and still reports its size; an old-style script keeps its old checks
         pkg_src = tmp / 'pkg_src'; shutil.copytree(ROOT / 'Air780EGH', pkg_src, ignore=shutil.ignore_patterns('_ota_release', '_archive', 'vendor_luac', '.git'))
         m = (pkg_src / 'main.lua').read_text(encoding='utf-8')
-        m = re.sub(r'(?m)^VERSION = "[0-9.]+"', 'VERSION = "001.005.002"', m)
-        m = re.sub(r'(?m)^PRODUCT_VERSION = "[0-9.]+"', 'PRODUCT_VERSION = "1.5.2"', m)
-        m = re.sub(r'(?m)^FW_RELEASE_BUILD = \d+', 'FW_RELEASE_BUILD = 6', m)
-        m = re.sub(r"(?m)^OTA_TRIAL_SOURCE='[0-9.]+'", "OTA_TRIAL_SOURCE='1.5.2'", m)     # SAM | 2026-11-04 +08:00 | pin the range too
-        m = re.sub(r"(?m)^OTA_TRIAL_TARGET='[0-9.]+'", "OTA_TRIAL_TARGET='1.5.3'", m)
-        m = m.replace('VERSION = "001.005.002"', 'VERSION = "001.005.003"').replace('PRODUCT_VERSION = "1.5.2"', 'PRODUCT_VERSION = "1.5.3"').replace('FW_RELEASE_BUILD = 6', 'FW_RELEASE_BUILD = 7')
+        m = re.sub(r'(?m)^VERSION = "[0-9.]+"', 'VERSION = "001.005.003"', m)
+        m = re.sub(r'(?m)^PRODUCT_VERSION = "[0-9.]+"', 'PRODUCT_VERSION = "1.5.3"', m)
+        m = re.sub(r'(?m)^FW_RELEASE_BUILD = \d+', 'FW_RELEASE_BUILD = 7', m)
         (pkg_src / 'main.lua').write_text(m, encoding='utf-8')
+        code, log = run('check', '--cat1', pkg_src); assert code == 0 and '上限 524288' in log and '升级包的目标版本' not in log, log
+        old_style = m + "\nOTA_TRIAL_MD5='00000000000000000000000000000000'\nOTA_TRIAL_SOURCE='1.5.2'\nOTA_TRIAL_TARGET='1.5.3'\n"
+        (pkg_src / 'main.lua').write_text(old_style, encoding='utf-8')
         code, log = run('check', '--cat1', pkg_src); assert code == 0 and '升级包的目标版本 1.5.3' in log and '上限 524288' in log, log
-        (pkg_src / 'main.lua').write_text(m.replace("OTA_TRIAL_TARGET='1.5.3'", "OTA_TRIAL_TARGET='1.5.4'"), encoding='utf-8')
+        # a wrong range is a hard error only for an old receiver that can start an OTA (frozen MD5); zero MD5 only warns
+        bad = old_style.replace("OTA_TRIAL_TARGET='1.5.3'", "OTA_TRIAL_TARGET='1.5.4'")
+        (pkg_src / 'main.lua').write_text(bad.replace("OTA_TRIAL_MD5='00000000000000000000000000000000'", "OTA_TRIAL_MD5='18ada1de6be255ff0a8f60da2e995c77'"), encoding='utf-8')
         code, log = run('check', '--cat1', pkg_src); assert code == 1 and '不一致' in log, log
+        (pkg_src / 'main.lua').write_text(bad, encoding='utf-8')
+        code, log = run('check', '--cat1', pkg_src); assert code == 0 and '不一致' not in log and 'CAT1 脚本' in log, log
+        # 3c. SAM | 2026-11-10 | `set` on a new-style source changes the identity only, and the result passes the plain CAT1 check
+        pkg2 = tmp / 'pkg2'; shutil.copytree(ROOT / 'Air780EGH', pkg2, ignore=shutil.ignore_patterns('_ota_release', '_archive', 'vendor_luac', 'soc'))
+        proj2 = tmp / 'proj2'; cfg2 = proj2 / 'ble_app_uart_c/Src/config'; cfg2.mkdir(parents=True); (proj2 / 'logs').mkdir()
+        header2 = cfg2 / 'yp001_fw_version.h'; shutil.copy2(header, header2)       # own header: the later tests keep using the first one untouched
+        code, log = run('set', '--header', header2, '--lua', pkg2 / 'main.lua', '--version', '1.5.99', '--build', '99')
+        assert code == 0 and '范围' not in log, log
+        mtxt = (pkg2 / 'main.lua').read_text(encoding='utf-8')
+        assert 'PRODUCT_VERSION = "1.5.99"' in mtxt and 'OTA_TRIAL' not in mtxt, mtxt[:800]
+        code, log = run('check', '--cat1', pkg2)
+        assert code == 0 and '上限 524288' in log and '不一致' not in log, log
+        # 3d. SAM | 2026-11-09 | backups go to --backup-dir (or the project's logs), never into the tool's own (possibly read-only) folder
+        bk = tmp / 'bk'
+        code, log = run('set', '--header', header2, '--lua', pkg2 / 'main.lua', '--version', '1.5.100', '--build', '100', '--backup-dir', bk)
+        assert code == 0 and list(bk.glob('set_*/gr_version_before.h')), log
+        assert not (Path(exe).parent / 'version_backup').exists(), 'tool wrote a backup into its own folder'
+        # 3e. SAM | 2026-11-10 | the source version for the 3 号工具 is read from the device (fw_version), here parsed from text; no hardware needed
+        code, log = run('devver', '--parse-text', '[FW_VERSION] YP001_FW|GR5526|001.005.031|35|END product=1.5.31 app_numeric=35 ota_provisioned=1')
+        assert code == 0 and '设备 GR 当前版本 1.5.31' in log and 'build 35' in log and '源版本' in log, log
+        code, log = run('devver', '--parse-text', 'nothing here'); assert code == 1 and '[FW_VERSION]' in log, log
         # 4. OTA_FS: parse, sufficiency, no hardware needed
         text = 'OTA_FS total=128 used=15 block=4096'
         # SAM | 2026-11-04 +08:00 | red line: signed image + 16384 reserve + 16384 growth margin (no extra 904 on a signed image)

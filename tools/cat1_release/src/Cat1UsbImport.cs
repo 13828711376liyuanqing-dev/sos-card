@@ -37,7 +37,7 @@ namespace YpCat1
 
     static class Builder
     {
-        public const string Version = "1.1";
+        public const string Version = "1.4";
         public const int Capacity = 0x80000, NameLimit = 23;
         // SAM | 2026-10-30 11:04 +08:00 | Vendor libraries next to the exe (toolkit folder) win over <source>/vendor_luac.
         public static string VendorFor(string source) { string local = Path.Combine(ToolDir, "vendor_luac"); return Directory.Exists(local) ? local : Path.Combine(source, "vendor_luac"); }
@@ -181,7 +181,13 @@ namespace YpCat1
                     else rep.Ok("升级包源码：目标版本 " + fields["OTA_TRIAL_TARGET"] + "（范围 " + fields["OTA_TRIAL_SOURCE"] + " -> " + fields["OTA_TRIAL_TARGET"] + "）");
                 }
                 else if (fields["OTA_TRIAL_SOURCE"] != fields["PRODUCT_VERSION"])
-                    rep.Error("OTA_TRIAL_SOURCE=" + fields["OTA_TRIAL_SOURCE"] + " 与 PRODUCT_VERSION=" + fields["PRODUCT_VERSION"] + " 不一致（接收端版本必须等于设备当前版本）");
+                {
+                    // SAM | 2026-11-08 +08:00 | Zero MD5 = this script set cannot start an OTA (OTA_TRIAL is refused before any action), so a range
+                    // that differs from the version is harmless for self-test imports. A frozen MD5 (a real OTA receiver) keeps the hard error.
+                    string msg = "OTA_TRIAL_SOURCE=" + fields["OTA_TRIAL_SOURCE"] + " 与 PRODUCT_VERSION=" + fields["PRODUCT_VERSION"] + " 不一致";
+                    if (md5.All(c => c == '0')) rep.Warn(msg + "：OTA_TRIAL_MD5 为全零，这套脚本不能发起 OTA，范围不影响自用测试；这是旧固件的写法，新版设备代码已经不用 OTA_TRIAL_*（OTA 出厂即可接收，不再需要接收端）");
+                    else rep.Error(msg + "（接收端版本必须等于设备当前版本）");
+                }
                 else rep.Ok("OTA 范围 " + fields["OTA_TRIAL_SOURCE"] + " -> " + fields["OTA_TRIAL_TARGET"]);
             }
             if (rep.Errors.Count > 0) return null;

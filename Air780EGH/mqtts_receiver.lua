@@ -86,7 +86,7 @@ function mqtts_receiver_test(topic,payload)
         if url then 
             local ip, port = url:match("^([^:]+):(%d+)$")
             if ip and port then
-                --port = tonumber(port)
+
                 log.info("parse", ip, port)
                 set_user_cfg("sip_url",ip)
                 set_user_cfg("sip_port",port)
@@ -197,7 +197,8 @@ end
 
 function mqtts_receiver.proc(topic, payload, metas)
 
-    log.info("50", topic, payload:len(), json.encode(metas))
+    --log.info("50", topic, payload:len(), json.encode(metas))
+    log.info("51", topic, payload:len(), payload)
 
     -- 接收到数据，通知网络环境检测看门狗功能模块进行喂狗
     sys.publish("FEED_NETWORK_WATCHDOG") 
@@ -233,7 +234,7 @@ function mqtts_receiver.proc(topic, payload, metas)
             require("resident_name").fetch(command.Url, command.Md5)
             return
         end
-        if ok and type(command)=="table" and require("business_runtime").downlink(topic,command,payload) then return end
+        --if ok and type(command)=="table" and require("business_runtime").downlink(topic,command,payload) then return end
     end
 
     -- 将topic和payload通过"RECV_DATA_FROM_SERVER"消息publish出去，给其他应用模块处理

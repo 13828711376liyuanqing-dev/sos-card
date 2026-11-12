@@ -34,6 +34,20 @@ bool yp_psram_mem_init(void)
     return true;
 }
 
+/* SAM | 2026-11-12 22:40 +08:00 | Use data-retaining HALF_SLEEP only at the diagnostic's final SDK entry boundary. */
+bool yp_psram_sleep_test_suspend(void)
+{
+    if (!s_psram_ready) return false;
+    app_graphics_ospi_set_power_state(OSPI_STATE_HALF_SLEEP);
+    return true;
+}
+
+/* SAM | 2026-11-12 22:40 +08:00 | Recover the bus immediately if ultra sleep returns because OTA and graphics can use PSRAM on the next idle pass. */
+void yp_psram_sleep_test_resume(void)
+{
+    if (s_psram_ready) app_graphics_ospi_set_power_state(OSPI_STATE_ACTIVE);
+}
+
 void *yp_psram_alloc(uint32_t size)
 {
     if (!s_psram_ready || size == 0) {

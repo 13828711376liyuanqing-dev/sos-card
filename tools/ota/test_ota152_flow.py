@@ -47,7 +47,10 @@ package.loaded.ota_data_inventory={transaction_snapshot=function(job,path,can_re
 nfp={native={init=function()inits=inits+1;ticks=ticks+5000;return true end,wait=function()return true end,run=function(d)written=(written or 0)+#d;return true,written>=CATJ.size,0 end,
  isDone=function()return true,(written or 0)>=CATJ.size end,finish=function()return true end},load=function()return nil,true end,
  save=function(x)if type(x)=='table' and x.phase=='COMMITTING' then commits=commits+1 end;return true end,
- native_contract_verified=function()return true end,require_data_identity=true,allow_unavailable_kv=true,now=function()return 100 end}
+ native_contract_verified=function()return true end,require_data_identity=true,allow_unavailable_kv=true,now=function()return 100 end,
+ -- SAM | 2026-11-10 | production gate: the unverified-KV scope is allowed for an upgrade of the running version (ota_trial eligible)
+ first_trial=require('ota_trial').new({core_sha256='29a3f2dc4eb07badc1093bf8b48f04fa54b40a6d537d1c0814dcfadf53693eec',evidence_sha256=string.rep('a',64)},
+  function()return {model='Air780EGH',core='V2052',bits=64,fs_bytes=524288,version=PRODUCT_VERSION} end)}
 R=dofile(src..'/ota_runtime.lua')
 function boot()r=R.new({store=newstore(),codec=json,download_port=dp,native_fota_port=nfp,
  bundle_port={verify_manifest=function()return true end,free_bytes=function()return 495616 end}})end
@@ -236,17 +239,18 @@ local x=newstore():load();x.io2.v='SPENT';x.io2.n=3;assert(newstore():save(x));b
 gr_phase='INSTALL_PENDING';seen=#sent;pump(65,function()return false end)
 assert(json.encode(newstore():load())==old and inits==0,'FOURTH_ARM');local hit=false;for _,l in ipairs(diag)do if l=='[OTA] arm IO_SCOPE_1011111' then hit=true end end;assert(hit,'NO_SCOPE_DIAG '..table.concat(diag,'|'))
 ''')
-    # OTA_TRIAL start command (update.lua): unfrozen MD5, URL without that md5, wrong running version are refused; the exact form starts.
+    # OTA_TRIAL start command (update.lua, 2026-11-10 syntax OTA_TRIAL=<target> <url>): no target, URL without md5, zero md5 or a malformed target are refused; the exact form starts.
     run(source, r'''
 tasks={};sys.subscribe=function()end;sys.taskInit=function(f)tasks[#tasks+1]=f end
 vu={};uart={VUART_0=32,setup=function()return 0 end,write=function(_,x)vu[#vu+1]=x;return true end}
 package.loaded.ota_runtime=R;R.set_instance(r);_G.at_cmd_handlers={};dofile(src..'/update.lua')
 local h=_G.at_cmd_handlers.OTA_TRIAL;local out={};local function say(x)out[#out+1]=x end
 local url='https://example.invalid/d?fileId=1&md5='..OTA_TRIAL_MD5
-h('OTA_TRIAL=https://example.invalid/d?md5='..string.rep('5',32),say);assert(out[1]=='OTA_TRIAL=REFUSED','URL_MD5')
-local keep=OTA_TRIAL_MD5;OTA_TRIAL_MD5=string.rep('0',32);h('OTA_TRIAL=https://example.invalid/d?md5='..OTA_TRIAL_MD5,say);OTA_TRIAL_MD5=keep;assert(out[2]=='OTA_TRIAL=REFUSED','ZERO_MD5')
-PRODUCT_VERSION='1.0.2';h('OTA_TRIAL='..url,say);PRODUCT_VERSION='1.5.1';assert(out[3]=='OTA_TRIAL=REFUSED','VERSION')
-local n=#tasks;h('OTA_TRIAL='..url,say);assert(#tasks==n+1);tasks[#tasks]();assert(out[4]=='OTA_TRIAL=WAIT_GR' and r:status().phase=='WAIT_GR','START '..tostring(out[4]))
+h('OTA_TRIAL=https://example.invalid/d?md5='..string.rep('5',32),say);assert(out[1]=='OTA_TRIAL=REFUSED','NO_TARGET')
+h('OTA_TRIAL=1.5.2 https://example.invalid/d?md5='..string.rep('0',32),say);assert(out[2]=='OTA_TRIAL=REFUSED','ZERO_MD5')
+h('OTA_TRIAL=1.5.2 https://example.invalid/d?fileId=1',say);assert(out[3]=='OTA_TRIAL=REFUSED','NO_URL_MD5')
+h('OTA_TRIAL=1.5 '..url,say);assert(out[4]=='OTA_TRIAL=REFUSED','BAD_TARGET')
+local n=#tasks;h('OTA_TRIAL=1.5.2 '..url,say);assert(#tasks==n+1);tasks[#tasks]();assert(out[5]=='OTA_TRIAL=WAIT_GR' and r:status().phase=='WAIT_GR','START '..tostring(out[5]))
 local st={};_G.at_cmd_handlers.FOTA_STATUS('FOTA_STATUS',function(x)st[#st+1]=x end);assert(st[1]=='WAIT_GR','STATUS_LINE')
 local io;for _,x in ipairs(st)do if x:find('^OTA_IO=') then io=x end end;assert(io=='OTA_IO=nil/0 TRIAL=RUNNING','IO_LINE '..tostring(io))
 ''')
@@ -292,7 +296,7 @@ assert(r:accept(cmd));h('FOTA_PROBE',say);assert(out[2]=='FOTA_PROBE=REFUSED WAI
           're-ACTIVATE; GR success (GRANT commit_safe true or false) -> io FINISHED, ticket RUNNING; CAT1 component proof 4 chunks; '
           'CAT1 GRANT without commit_safe -> install-only path; unsafe STATUS only waits; real native start (5 s init) -> 62 chunks -> '
           'commit after 11 s rehash + 5 s scan -> one REBOOT_GRANT reset; second boot_commit_failed holds; CAT1 reboot while armed -> one '
-          'automatic re-arm -> install; fourth arm refused; OTA_TRIAL refuses unfrozen/mismatched/wrong-version and starts the exact form')
+          'automatic re-arm -> install; fourth arm refused; OTA_TRIAL refuses a missing target/URL md5/zero md5/bad target and starts the exact form')
 
 
 if __name__ == '__main__':

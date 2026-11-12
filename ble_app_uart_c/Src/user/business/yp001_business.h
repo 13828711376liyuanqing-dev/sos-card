@@ -32,11 +32,11 @@ void yp_business_init(void);
 const yp_business_status_t *yp_business_status(void);
 /* SAM | 2026-10-23 20:18 +08:00 | Copy only a fresh measured CAT product identity; this is not whole-release confirmation. */
 bool yp_business_cat_version(char *version,size_t capacity);
-/* SAM | 2026-10-23 +08:00 | OTA consumes fresh measured inputs, never a silent sensor or stale released key as proof of safety. */
+/* SAM | 2026-11-07 +08:00 | OTA control events and their sampling ages do not block progress; actual power freshness and port safety gates remain required. */
 typedef struct { bool known,stable,activity; } yp_business_ota_inputs_t;
 void yp_business_motion(bool known, bool moving, uint32_t now);
 void yp_business_ota_inputs(yp_business_ota_inputs_t *inputs);
-/* SAM | 2026-11-07 07:14 +08:00 | Only the physical OTA port supplies live USB proof; sensor ages and activity remain mandatory. */
+/* SAM | 2026-11-07 +08:00 | Only the physical OTA port supplies live USB proof as an alternative to a known battery; its sample stays fresh. */
 void yp_business_ota_inputs_with_usb(yp_business_ota_inputs_t *inputs, bool usb_power);
 /* SAM | 2026-10-25 +08:00 | Pure clock and evidence APIs cannot send UART or alter samples. */
 void yp_business_observation_clock(uint32_t now_ms);
@@ -58,15 +58,17 @@ void yp_business_keys(bool left, bool right, uint32_t now_ms);
 bool yp_business_take_sequence(char *buf, size_t cap);
 void yp_business_battery(bool known, uint8_t percent, bool charging);
 bool yp_business_handle_line(const char *line, size_t length);
+/* SAM | 2026-11-08 20:30 +08:00 | Read-only conservative shipping eligibility, including unfinished name updates. */
+bool yp_business_shipping_idle(void);
 void yp_business_transport_lost(void);
 bool yp_business_start_alarm(void);
-/* SAM | 2026-11-04 +08:00 | QP queue acceptance is separate from CAT1 durable state confirmation. */
-bool yp_business_port_sos(bool start);
-bool yp_business_sos_start_allowed(void);
-void yp_business_sos_stopped(void);
 void yp_business_cancel_alarm(void); /* Internal entry only: gesture/platform field unconfirmed. */
 /* SAM | 2026-11-07 11:57 +08:00 | Foreground call state update for QP and validated CAT1 events. */
 void yp_business_call_set(yp_call_t state);
+/* SAM | 2026-11-07 +08:00 | CAT1 owns durable phones; GR keeps a validated RAM projection for QP dialing. */
+bool yp_business_call_out_set(const char *number);
+const char *yp_business_call_out(void);
+bool yp_business_call_out_known(void);
 void yp_business_call_action(bool accept);
 void yp_business_show_time(bool enabled);
 bool yp_business_set_resident(const char *name, const char *room, const char *campus);

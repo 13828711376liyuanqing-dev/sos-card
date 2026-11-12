@@ -1,0 +1,1 @@
+GEN_CSRCS += _qr_imei_alpha_116x116.c _battery_4_alpha_20x10.c _battery_1_alpha_20x10.c _icon_sos_alpha_72x72.c _icon_call_end_alpha_60x60.c

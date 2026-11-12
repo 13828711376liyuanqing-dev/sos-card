@@ -1,0 +1,20 @@
+"""SAM | 2026-11-10 +08:00 | Build the standalone GR TRIAL probe folder: YpTrialProbe.exe + 使用说明.txt (.NET Framework 4 ships with Windows)."""
+import os
+import shutil
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT = os.path.join(HERE, 'YpTrialProbe_Tool')
+CSC = os.path.join(os.environ.get('WINDIR', 'C:' + os.sep + 'Windows'), 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe')
+REFS = ['System.Windows.Forms.dll', 'System.Drawing.dll', 'System.Core.dll']
+
+os.makedirs(OUT, exist_ok=True)
+r = subprocess.run([CSC, '-nologo', '-codepage:65001', '-optimize+', '-target:winexe', '-out:' + os.path.join(OUT, 'YpTrialProbe.exe')] +
+                   ['-reference:' + x for x in REFS] + [os.path.join(HERE, 'src', 'YpTrialProbe.cs')],
+                   capture_output=True, text=True, errors='replace')
+print('\n'.join(l for l in r.stdout.splitlines() if 'error' in l or 'warning' in l))
+if r.returncode:
+    sys.exit(r.returncode)
+shutil.copy2(os.path.join(HERE, '使用说明.txt'), os.path.join(OUT, '使用说明.txt'))
+print('built', OUT)

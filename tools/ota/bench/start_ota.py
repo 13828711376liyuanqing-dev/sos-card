@@ -3,6 +3,8 @@ import os  # SAM | 2026-11-04 +08:00 | GR CLI port from YP_GR_PORT (bench board 
 # Exit 0 only if OTA_TRIAL=WAIT_GR and the mandatory [OTA] LOG_CLEARED and [OTA_HOLD] on were seen; 2 otherwise.
 import re, sys, time, serial
 from cat1wait import settle
+sys.path.insert(0, __import__('os').path.join(__import__('os').path.dirname(__import__('os').path.abspath(__file__)), '..'))
+from gr_port import pick  # SAM | 2026-11-09 | the COM number changes: never hard-coded
 url = open(sys.argv[1]).read().strip(); log = open(sys.argv[2], 'w', encoding='utf-8')
 buf = ''
 def pump(sec, until=None, count=1):
@@ -16,7 +18,7 @@ def pump(sec, until=None, count=1):
                 seen = buf.count(until)
                 if seen >= count: return True
     return False
-with serial.Serial(os.environ.get('YP_GR_PORT', 'COM26'), 115200, timeout=0.1) as s:
+with serial.Serial(pick(), 115200, timeout=0.1) as s:
     time.sleep(0.3); s.read(65536)
     s.write(b'cat1_power reset\r\n')
     ok, buf = settle(s, log)

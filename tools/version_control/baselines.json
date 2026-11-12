@@ -1,87 +1,152 @@
 {
-  "schema": "YP001_LOCAL_BASELINE_REGISTRY_V1",
-  "control_branch": "codex/version-protection-20261107",
-  "scope": "Frozen baseline metadata and byte anchors; the source-candidate Git checkpoint is not the physical b18 build identity.",
-  "baselines": [
-    {
-      "baseline_id": "YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R2",
-      "directory": "firmware_releases/baselines/YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R2",
-      "manifest_sha256": "d24e1a6de9428c45f8b78f199e3b6dde4538803c4e33660fcf1b2d21139c0fba",
-      "status": "OTA_PASS_WITH_KNOWN_ISSUES",
-      "source_alignment": "pending",
-      "production_promotion": "blocked",
-      "files": 9094,
-      "bytes": 422681207,
-      "rollback_plan": "firmware_releases/baselines/YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R2/rollback/执行卡.md"
-    }
-  ],
-  "candidates": [
-    {
-      "candidate_id": "GR_ACTIVATE_REPLAY_20261107_HOST_ONLY",
-      "directory": "firmware_releases/candidates/GR_ACTIVATE_REPLAY_20261107_HOST_ONLY",
-      "manifest_sha256": "74f1b4d6ca7c0643ffe61c54cfd16065e8bf667818d13581ef8e484889a27bb6",
-      "parent_baseline_id": "YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R2",
-      "status": "SOURCE_HOST_PASS_NOT_BUILT_NOT_FLASHED",
-      "release_identity": "UNASSIGNED_REBUILD_REQUIRED"
-    },
-    {
-      "candidate_id": "SVN_R88_SIP_DISCONNECT_1.5.15_b19_20261107",
-      "directory": "firmware_releases/candidates/svn_r88_sip_disconnect_20261107",
-      "manifest_sha256": "8ad2d28f87113f9d7b44b9fbb5c0a3067a8a12bbcc67a03022bc043143e82287",
-      "parent_source_commit": "9dbf0fbf5a448208b8f3b0c73d4ce7811220f0d8",
-      "branch": "codex/integrate-svn-r88-20261107",
-      "status": "BUILD_FLASH_STARTUP_COMM_PASS_SIP_UNTESTED",
-      "release_identity": "GR_1.5.15_b19_CAT1_RUNTIME_1.5.14",
-      "accepted_function": "Cat_Sip_connected handles SIP_DISCONNECT_SIG through existing idle transition",
-      "startup_evidence": "logs/svn_integration_20261107/board_b19/startup_verification.json",
-      "physical_sip_acceptance": "PENDING_NO_TEST_CONDITIONS_USER_ACCEPTED_COMM_CHECK"
-    },
-    {
-      "candidate_id": "SVN_R88_SOS_LATCH_1.5.16_b20_20261107",
-      "directory": "firmware_releases/candidates/svn_r88_sos_latch_20261107",
-      "manifest_sha256": "8300f8035a581c91cc36e2a7d16db1577b0c85a011d9f9bb33c514759180b499",
-      "parent_source_commit": "3c622b2260b78a7b8eb9952dc1fbf391442f8675",
-      "status": "USER_ACCEPTED_LOCAL_SOS_SCOPE",
-      "release_identity": "GR_1.5.16_b20_CAT1_RUNTIME_1.5.14",
-      "accepted_function": "One SOS request per debounced held chord; rearm on release; keep OUR mailbox and call handling",
-      "startup_evidence": "logs/svn_integration_20261107/board_b20/startup_verification.json",
-      "physical_key_acceptance": "USER_OK_TRIGGER_SOUND_AND_REPEAT_WHILE_ACTIVE",
-      "remaining_board_cases": "Cancel during held chord and rearm after stable release are host-tested, board-pending"
-    },
-    {
-      "candidate_id": "SVN_R88_CALL_DISPLAY_1.5.17_b21_20261107",
-      "directory": "firmware_releases/candidates/svn_r88_call_display_20261107",
-      "manifest_sha256": "64dbf5e5904501a941a5ccb07033ff0bcb4207fecd9e47e253121d7628a9aac5",
-      "parent_source_commit": "dbfca47bf37abdbd8249b00f07057ccc5874de93",
-      "status": "USER_ACCEPTED_LOCAL_DISPLAY_SCOPE",
-      "release_identity": "GR_1.5.17_b21_CAT1_RUNTIME_1.5.14",
-      "accepted_function": "QP dialing publishes YP_CALL_DIALING through shared call/revision setter; actual CAT1 BUS_EVT drives other states; alarm retained",
-      "startup_evidence": "logs/svn_integration_20261107/board_b21/startup_verification.json",
-      "physical_display_acceptance": "USER_CONFIRMED_SYNTHETIC_CONNECTED_AND_ENDED_THEN_HOME",
-      "remaining_board_cases": "Actual SIP call and QP dialing to real screen remain pending without call environment"
-    },
-    {
-      "candidate_id": "SVN_R88_SCAN_STOP_1.5.18_b22_20261107",
-      "directory": "firmware_releases/candidates/svn_r88_scan_stop_20261107",
-      "manifest_sha256": "966b868c5cde76fc37b1bb948081a00bfdb817d5dfc1b1fc491e9ee07b16288a",
-      "parent_source_commit": "7d30b25016e5d5334928aac653f0560540ef873f",
-      "status": "BUILD_FLASH_COMM_PASS_SCAN_CONTROL_FAILED",
-      "release_identity": "CANDIDATE_1.5.18_b22_NOT_BUILT",
-      "accepted_function": "Adapt donor periodic radio stop with shared location/manual leases, alarm/phone guards, actual BLE stop completion barrier and handoff restart",
-      "physical_scan_acceptance": "FAIL_START_AND_STOP_SDK_DISALLOWED",
-      "evidence": "logs/svn_integration_20261107/board_b22/scan_accelerated.json"
-    },
-    {
-      "candidate_id": "SVN_R88_BLE_IRQ_1.5.19_b23_20261107",
-      "directory": "firmware_releases/candidates/svn_r88_ble_irq_20261107",
-      "manifest_sha256": "c6cdfec707fe66421aac8d7837782f1bffc73a600aca2fe24999fa65686967e1",
-      "parent_source_commit": "d661fe3894dfc6178502fa2cba65fbcf1e0f3698",
-      "status": "SOURCE_HOST_PASS_NOT_BUILT_NOT_FLASHED",
-      "release_identity": "CANDIDATE_1.5.19_b23_NOT_BUILT"
-    }
-  ],
-  "incomplete_directories": [
-    "firmware_releases/baselines/YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES",
-    "firmware_releases/baselines/YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R1"
-  ]
+ "schema": "YP001_LOCAL_BASELINE_REGISTRY_V1",
+ "control_branch": "codex/version-protection-20261107",
+ "scope": "Frozen baseline metadata and byte anchors; the source-candidate Git checkpoint is not the physical b18 build identity.",
+ "baselines": [
+  {
+   "baseline_id": "YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R2",
+   "directory": "firmware_releases/baselines/YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R2",
+   "manifest_sha256": "d24e1a6de9428c45f8b78f199e3b6dde4538803c4e33660fcf1b2d21139c0fba",
+   "status": "OTA_PASS_WITH_KNOWN_ISSUES",
+   "source_alignment": "pending",
+   "production_promotion": "blocked",
+   "files": 9094,
+   "bytes": 422681207,
+   "rollback_plan": "firmware_releases/baselines/YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R2/rollback/执行卡.md"
+  },
+  {
+   "baseline_id": "YP001_1.5.23_b27_20261108_OTA_PASS_KNOWN_ISSUES",
+   "directory": "firmware_releases/baselines/YP001_1.5.23_b27_20261108_OTA_PASS_KNOWN_ISSUES",
+   "manifest_sha256": "267099e83d56615948378c14654484897e62c667d11d9988b6e382be533bd1f4",
+   "status": "OTA_PASS_WITH_KNOWN_ISSUES",
+   "source_alignment": "verified_build_inputs",
+   "production_promotion": "blocked",
+   "files": 9154,
+   "bytes": 451089205,
+   "rollback_plan": "firmware_releases/baselines/YP001_1.5.23_b27_20261108_OTA_PASS_KNOWN_ISSUES/rollback/执行卡.md",
+   "note": "b27 = b26 + colleague YP01 merge + OTA guards; real dual-end OTA 22->23 passed 2026-11-08; business matrix, guard trigger test, rescue drill, fonts/OTA concurrency pending."
+  },
+  {
+   "baseline_id": "YP001_1.5.31_b35_20261110_OTA_FACTORY_READY_PASS_KNOWN_ISSUES",
+   "directory": "firmware_releases/baselines/YP001_1.5.31_b35_20261110_OTA_FACTORY_READY_PASS_KNOWN_ISSUES",
+   "manifest_sha256": "3f677251cc6ce652035a3a13d16b63cac5ac5f2481ae642db0ac0d2c4f6bb723",
+   "status": "OTA_PASS_WITH_KNOWN_ISSUES",
+   "source_alignment": "verified_build_inputs",
+   "production_promotion": "blocked",
+   "files": 9106,
+   "bytes": 426343658,
+   "rollback_plan": "firmware_releases/baselines/YP001_1.5.31_b35_20261110_OTA_FACTORY_READY_PASS_KNOWN_ISSUES/rollback/执行卡.md",
+   "note": "b35 = first factory-ready OTA freeze (CAT1 gate is a rule: source = running version, target higher; no receiver, no frozen MD5, no written-in range). Real platform-push OTAs 1.5.29->1.5.30->1.5.31 on one board without reflash passed 2026-11-10; business matrix, guard trigger test, rescue drill, fonts/OTA concurrency, shipping physical acceptance and production macros still pending."
+  }
+ ],
+ "candidates": [
+  {
+   "candidate_id": "GR_ACTIVATE_REPLAY_20261107_HOST_ONLY",
+   "directory": "firmware_releases/candidates/GR_ACTIVATE_REPLAY_20261107_HOST_ONLY",
+   "manifest_sha256": "74f1b4d6ca7c0643ffe61c54cfd16065e8bf667818d13581ef8e484889a27bb6",
+   "parent_baseline_id": "YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R2",
+   "status": "SOURCE_HOST_PASS_NOT_BUILT_NOT_FLASHED",
+   "release_identity": "UNASSIGNED_REBUILD_REQUIRED"
+  },
+  {
+   "candidate_id": "SVN_R88_SIP_DISCONNECT_1.5.15_b19_20261107",
+   "directory": "firmware_releases/candidates/svn_r88_sip_disconnect_20261107",
+   "manifest_sha256": "8ad2d28f87113f9d7b44b9fbb5c0a3067a8a12bbcc67a03022bc043143e82287",
+   "parent_source_commit": "9dbf0fbf5a448208b8f3b0c73d4ce7811220f0d8",
+   "branch": "codex/integrate-svn-r88-20261107",
+   "status": "BUILD_FLASH_STARTUP_COMM_PASS_SIP_UNTESTED",
+   "release_identity": "GR_1.5.15_b19_CAT1_RUNTIME_1.5.14",
+   "accepted_function": "Cat_Sip_connected handles SIP_DISCONNECT_SIG through existing idle transition",
+   "startup_evidence": "logs/svn_integration_20261107/board_b19/startup_verification.json",
+   "physical_sip_acceptance": "PENDING_NO_TEST_CONDITIONS_USER_ACCEPTED_COMM_CHECK"
+  },
+  {
+   "candidate_id": "SVN_R88_SOS_LATCH_1.5.16_b20_20261107",
+   "directory": "firmware_releases/candidates/svn_r88_sos_latch_20261107",
+   "manifest_sha256": "8300f8035a581c91cc36e2a7d16db1577b0c85a011d9f9bb33c514759180b499",
+   "parent_source_commit": "3c622b2260b78a7b8eb9952dc1fbf391442f8675",
+   "status": "USER_ACCEPTED_LOCAL_SOS_SCOPE",
+   "release_identity": "GR_1.5.16_b20_CAT1_RUNTIME_1.5.14",
+   "accepted_function": "One SOS request per debounced held chord; rearm on release; keep OUR mailbox and call handling",
+   "startup_evidence": "logs/svn_integration_20261107/board_b20/startup_verification.json",
+   "physical_key_acceptance": "USER_OK_TRIGGER_SOUND_AND_REPEAT_WHILE_ACTIVE",
+   "remaining_board_cases": "Cancel during held chord and rearm after stable release are host-tested, board-pending"
+  },
+  {
+   "candidate_id": "SVN_R88_CALL_DISPLAY_1.5.17_b21_20261107",
+   "directory": "firmware_releases/candidates/svn_r88_call_display_20261107",
+   "manifest_sha256": "64dbf5e5904501a941a5ccb07033ff0bcb4207fecd9e47e253121d7628a9aac5",
+   "parent_source_commit": "dbfca47bf37abdbd8249b00f07057ccc5874de93",
+   "status": "USER_ACCEPTED_LOCAL_DISPLAY_SCOPE",
+   "release_identity": "GR_1.5.17_b21_CAT1_RUNTIME_1.5.14",
+   "accepted_function": "QP dialing publishes YP_CALL_DIALING through shared call/revision setter; actual CAT1 BUS_EVT drives other states; alarm retained",
+   "startup_evidence": "logs/svn_integration_20261107/board_b21/startup_verification.json",
+   "physical_display_acceptance": "USER_CONFIRMED_SYNTHETIC_CONNECTED_AND_ENDED_THEN_HOME",
+   "remaining_board_cases": "Actual SIP call and QP dialing to real screen remain pending without call environment"
+  },
+  {
+   "candidate_id": "SVN_R88_SCAN_STOP_1.5.18_b22_20261107",
+   "directory": "firmware_releases/candidates/svn_r88_scan_stop_20261107",
+   "manifest_sha256": "966b868c5cde76fc37b1bb948081a00bfdb817d5dfc1b1fc491e9ee07b16288a",
+   "parent_source_commit": "7d30b25016e5d5334928aac653f0560540ef873f",
+   "status": "BUILD_FLASH_COMM_PASS_SCAN_CONTROL_FAILED",
+   "release_identity": "CANDIDATE_1.5.18_b22_NOT_BUILT",
+   "accepted_function": "Adapt donor periodic radio stop with shared location/manual leases, alarm/phone guards, actual BLE stop completion barrier and handoff restart",
+   "physical_scan_acceptance": "FAIL_START_AND_STOP_SDK_DISALLOWED",
+   "evidence": "logs/svn_integration_20261107/board_b22/scan_accelerated.json"
+  },
+  {
+   "candidate_id": "SVN_R88_BLE_IRQ_1.5.19_b23_20261107",
+   "directory": "firmware_releases/candidates/svn_r88_ble_irq_20261107",
+   "manifest_sha256": "c6cdfec707fe66421aac8d7837782f1bffc73a600aca2fe24999fa65686967e1",
+   "parent_source_commit": "d661fe3894dfc6178502fa2cba65fbcf1e0f3698",
+   "status": "FLASH_STARTUP_COMM_MANUAL_SCAN_PASS_OTA_PENDING",
+   "release_identity": "GR_1.5.19_b23_SIGNED_BOARD_PENDING",
+   "build_evidence": "logs/svn_integration_20261107/build_b23/input_build_check.json",
+   "board_evidence": "logs/svn_integration_20261107/board_b23/acceptance.json",
+   "physical_scan_acceptance": "MANUAL_START_STOP_PASS_MOTION_PERIODIC_PENDING",
+   "signed_image_sha256": "4850950d58c1df4f8813cad91a684f9d109da11dc6aa5a355abfac11b4e8ae35",
+   "signed_bytes": 382216,
+   "ota_budget_remaining_bytes": 11000,
+   "ota_impact_status": "HIGH_SHARED_IRQ_CHANGE",
+   "ota_host_regression": "PASS_6_SCOPED_HOST_CHECKS_logs/svn_integration_20261107/ota_impact_audit",
+   "ota_board_regression": "PENDING",
+   "stable_promotion": "BLOCKED_UNTIL_OTA_PASS"
+  },
+  {
+   "candidate_id": "OTA_CONTROL_EVENTS_1.5.20_b24_20261107",
+   "directory": "firmware_releases/candidates/svn_r88_ota_control_events_20261107",
+   "manifest_sha256": "8ae9bb1f71f9c1d0aca8c3fbd899e9f04a2033eb9d1fa67df5acd9f993f68235",
+   "parent_source_commit": "78b7c17",
+   "status": "FLASH_READBACK_STARTUP_COMM_PASS_OTA_PENDING",
+   "release_identity": "GR_1.5.20_b24_CAT1_RUNTIME_1.5.14",
+   "ota_impact_status": "DIRECT_OTA_CONTROL_INPUT_POLICY",
+   "ota_host_regression": "PASS_PRODUCTION_AND_BENCH_CONTROLS_130S_AND_EXISTING_5_SPECIALTIES",
+   "ota_board_regression": "PENDING",
+   "stable_promotion": "BLOCKED_UNTIL_OTA_PASS",
+   "build_evidence": "logs/svn_integration_20261107/build_b24/build_verification.json",
+   "signed_image_sha256": "d159336169d60a025cb08d009384e7c7b770100020122e8fa043d815c04f2823",
+   "signed_bytes": 382184,
+   "ota_budget_remaining_bytes": 11032,
+   "board_evidence": "logs/svn_integration_20261107/board_b24/acceptance.json"
+  },
+  {
+   "candidate_id": "SVN_R88_PLATFORM_CALLOUT_1.5.21_b25_20261107",
+   "directory": "firmware_releases/candidates/svn_r88_platform_callout_20261107",
+   "manifest_sha256": "cfcb4ffb3f08a44f835d235236963c85f455b599b467e0f61eba405468c09710",
+   "status": "CAT1_RUNTIME_21_GR_STILL_B24",
+   "release_identity": "GR_1.5.21_b25_CAT1_1.5.21_b25_CANDIDATE",
+   "ota_impact_status": "CALL_STATE_SHARED_UART_AND_VERSION_COMPATIBILITY",
+   "ota_board_regression": "PENDING",
+   "stable_promotion": "BLOCKED_UNTIL_BATCH_OTA_PASS",
+   "build_evidence": "logs/svn_integration_20261107/build_b25/build_verification.json",
+   "signed_image_sha256": "4d61aa40fb6615c61faeac525aa2f792ea068c923c1f2574079ccb42e1758fd2",
+   "cat1_integrity_sha256": "0c7b35efc97f0e8bb323be4a4d016876a97e71b62ff8aeb35d0a15a2115a0308",
+   "board_evidence": "logs/svn_integration_20261107/board_b25/acceptance.json"
+  }
+ ],
+ "incomplete_directories": [
+  "firmware_releases/baselines/YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES",
+  "firmware_releases/baselines/YP001_1.5.14_b18_20261107_OTA_PASS_KNOWN_ISSUES_R1"
+ ]
 }

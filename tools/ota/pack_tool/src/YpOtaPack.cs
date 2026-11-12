@@ -43,7 +43,7 @@ namespace YpPack
 
     static class Tool
     {
-        public const string Version = "1.1";
+        public const string Version = "1.3";
         public const string AuthDomain = "YP001_OTA_AUTHORIZATION_RSA_V1";
         public const int ZipLimit = 2097152;                      // the device accepts an archive proof only up to 2 MiB
         static readonly UTF8Encoding Utf8 = new UTF8Encoding(false);
@@ -245,11 +245,15 @@ namespace YpPack
             string main = File.ReadAllText(Path.Combine(src, "main.lua"), Utf8);
             Func<string, string> field = k => { var m = Regex.Match(main, "^" + k + @"\s*=\s*[""']?([^""'\r\n]+)", RegexOptions.Multiline); return m.Success ? m.Groups[1].Value.Trim() : null; };
             string product = field("PRODUCT_VERSION"), from = field("OTA_TRIAL_SOURCE"), to = field("OTA_TRIAL_TARGET"), md5 = field("OTA_TRIAL_MD5");
-            if (product == null || from == null || to == null) { rep.Error("main.lua 里要有 PRODUCT_VERSION、OTA_TRIAL_SOURCE、OTA_TRIAL_TARGET"); return null; }
-            if (FirmwareIdentity.Normalize(product) != FirmwareIdentity.Normalize(to))
-            { rep.Error("这份源码是给目标版本用的：main.lua 的 PRODUCT_VERSION=" + product + " 必须等于 OTA_TRIAL_TARGET=" + to + "（先把版本号改成目标版本）"); return null; }
-            rep.Ok("目标版本 " + to + "（范围 " + from + " → " + to + "）");
-            if (md5 != null && !md5.All(c => c == '0')) rep.Warn("OTA_TRIAL_MD5 不是全零：目标脚本里带着发令用的冻结 MD5（升级后的设备不应再能发起 OTA）");
+            // SAM | 2026-11-10 | OTA is ready from the factory: the target is simply the version in main.lua; the device upgrades from the version it runs now.
+            // No OTA_TRIAL_SOURCE/TARGET/MD5 are written into the script any more (the source version is given when the authorization is made).
+            if (product == null) { rep.Error("main.lua 里要有 PRODUCT_VERSION"); return null; }
+            to = product;
+            string longVersion = field("VERSION");
+            if (longVersion == null || FirmwareIdentity.Normalize(longVersion) != FirmwareIdentity.Normalize(product))
+            { rep.Error("main.lua 的 VERSION=" + longVersion + " 与 PRODUCT_VERSION=" + product + " 不符（先用 4 号工具把版本改对）"); return null; }
+            rep.Ok("目标版本 " + to + "（设备从它当前的版本升级到这个版本；源版本在“② 生成授权文件”里填）");
+            if (from != null || md5 != null || field("OTA_TRIAL_TARGET") != null) rep.Warn("main.lua 里还留着 OTA_TRIAL_SOURCE/TARGET/MD5：新版设备代码已经不用它们，可以删掉");
             if (Regex.Matches(main, "evidence_sha256='[0-9a-f]{64}'").Count != 1) { rep.Error("main.lua 里要有且只有一处 evidence_sha256='<64位十六进制>'"); return null; }
 
             string stage = Path.Combine(Path.GetTempPath(), "yp_src_" + Guid.NewGuid().ToString("N"));
@@ -266,7 +270,7 @@ namespace YpPack
                 if (!File.Exists(soc)) { rep.Error("缺少底包 " + soc); return null; }
                 Directory.CreateDirectory(Path.Combine(stage, "soc")); File.Copy(soc, Path.Combine(stage, "soc", Cat1Native.SocName));
                 var review = new SortedDictionary<string, object> {
-                    { "schema", 1 }, { "purpose", "CONTROLLED_OTA_REVIEW_NOT_INSTALLATION_ACCEPTANCE" }, { "source_version", from }, { "target_version", to },
+                    { "schema", 1 }, { "purpose", "CONTROLLED_OTA_REVIEW_NOT_INSTALLATION_ACCEPTANCE" }, { "target_version", to },
                     { "cat_core_sha256", Cat1Native.SocHash }, { "native_installation_accepted", false }, { "raw_kv_accepted", false },
                     { "readable_data_comparison_required", true }, { "data_scope", "readable_files_and_initialized_kv" },
                     { "basis", a.Basis ?? "" }, { "host_checks", a.HostChecks }, { "not_verified", a.NotVerified.Count > 0 ? a.NotVerified : new List<string> { "CAT1 原生脚本 FOTA 在设备上的结果", "原始 KV 保留" } },
@@ -313,7 +317,7 @@ namespace YpPack
                 if (image == null || cat == null || !reviewOk) return null;
                 rep.Log("[2] 授权内容");
                 string target = FirmwareIdentity.Normalize(gid.Version), source = a.Source == null ? null : FirmwareIdentity.Normalize(a.Source);
-                if (source == null) { rep.Error("请填写源版本（设备当前版本，如 1.5.1）"); return null; }
+                if (source == null) { rep.Error("请填写源版本（设备现在运行的版本；用 4 号工具“读设备版本”读，填错的包设备会拒绝）"); return null; }
                 if (PackCore.CompareVersion(target, source) <= 0) { rep.Error("目标版本 " + target + " 必须高于源版本 " + source); return null; }
                 if (FirmwareIdentity.Normalize(cat.Version) != target) { rep.Error("CAT1 版本 " + cat.Version + " 与 GR 版本 " + target + " 不一致"); return null; }
                 if (!a.Reviewed || !a.BootVerified) { rep.Error("授权必须明确确认：已完成激活评审、GR Boot 已实板验证（--reviewed --boot-verified）"); return null; }
@@ -466,13 +470,13 @@ namespace YpPack
             Row("工作文件夹（生成的文件都放这里）", work, ref y, "folder");
             Row("GR 签名镜像 (.bin 或 .hex)", gr, ref y, "file");
             Row("CAT1 源码目录", src, ref y, "folder");
-            Row("源版本（设备当前版本，如 1.5.2）", source, ref y, null);
+            Row("源版本（设备现在运行的版本）", source, ref y, null);
             Row("评审依据说明（可选）", basis, ref y, null);
-            Row("CAT1 可用空间（字节，向开发工程师要）", free, ref y, null);
+            Row("CAT1 可用空间（字节，设备上读到的真实值）", free, ref y, null);
             // SAM | 2026-10-30 14:57 +08:00 | The hint wraps at the field width and the rows below follow its real height, so large fonts / DPI cannot overlap it.
-            var freeHint = new Label { Text = "这个数来自设备，由开发工程师在设备上执行 cat_at OTA_FS 后提供：可用 = (total − used) × block，例如 462848。" + "\n" +
-                "读法：板子接电脑，用 GR 调试串口（115200，台架现在是 COM30）发一次 cat_at OTA_FS，读完直接填读到的值。" + "\n" +
-                "红线：必须 ≥ GR 签名镜像 + 32768（16 KiB 保留 + 16 KiB OTA 过程增长余量），1.5.10 约 405736；不够时工具会拒绝打包，不要估算，也不要随便填大。",
+            var freeHint = new Label { Text = "源版本：用 4 号工具“读设备版本”读到的设备当前版本；授权范围是 源版本 → 目标版本，设备只接收源版本等于它当前版本的包。" + "\n" + "可用空间：用 4 号工具“读取设备可用空间”读到的真实值（= (total − used) × block）。" + "\n" +
+                "读法：板子上电，4 号工具里选 GR 命令口（列表已去掉 CAT1 的口）；也可以手工用 GR 调试串口（115200）发一次 cat_at OTA_FS。" + "\n" +
+                "红线：必须 ≥ GR 签名镜像 + 32768（16 KiB 保留 + 16 KiB OTA 过程增长余量）；不够时工具会拒绝打包。不要估算，也不要把这个门槛当实际值填。",
                 Left = 300, Top = y - 2, AutoSize = true, MaximumSize = new Size(700, 0), ForeColor = Color.DimGray };
             Controls.Add(freeHint); y += freeHint.GetPreferredSize(new Size(700, 0)).Height + 10;
             var fp = new FlowLayoutPanel { Left = 300, Top = y, Width = 600, Height = 26 }; fp.Controls.AddRange(new Control[] { reviewed, boot }); Controls.Add(fp); y += 32;

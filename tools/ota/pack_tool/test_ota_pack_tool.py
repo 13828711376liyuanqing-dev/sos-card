@@ -62,14 +62,20 @@ def main():
         old_src = tmp / 'src_old'; shutil.copytree(src, old_src)
         (old_src / 'main.lua').write_bytes((old_src / 'main.lua').read_bytes().replace(b'PRODUCT_VERSION = "1.5.3"', b'PRODUCT_VERSION = "1.5.2"'))
         code, log = run('cat1', '--source', old_src, '--out', tmp / 'c_old')
-        assert code == 1 and '目标版本' in log and not list((tmp / 'c_old').glob('*.sota')), log
+        assert code == 1 and '不符' in log and not list((tmp / 'c_old').glob('*.sota')), log     # SAM | 2026-11-10 | PRODUCT_VERSION is the target; a script whose VERSION differs is refused
         code, log = run('cat1', '--source', src, '--out', tmp / 'cat', '--basis', 'self-test', '--host-check', 'host', '--not-verified', 'device')
         assert code == 0, log
         sota = next((tmp / 'cat').glob('*.sota')); review = tmp / 'cat/review.json'
         assert (tmp / 'cat' / (sota.name + '.json')).exists() and review.exists() and '001.005.003' in sota.name, log
         rv = json.loads(review.read_text(encoding='utf-8'))
-        assert rv['source_version'] == '1.5.2' and rv['target_version'] == '1.5.3' and 'main.lua' not in rv['source_sha256'] and rv['native_installation_accepted'] is False
+        assert 'source_version' not in rv and rv['target_version'] == '1.5.3' and 'main.lua' not in rv['source_sha256'] and rv['native_installation_accepted'] is False
 
+        # 1b. SAM | 2026-11-10 | leftover OTA_TRIAL_SOURCE/TARGET/MD5 lines of an old script are only a warning (the device no longer uses them)
+        legacy = tmp / 'src_legacy'; shutil.copytree(src, legacy)
+        with open(legacy / 'main.lua', 'ab') as f:
+            f.write(b"\r\nOTA_TRIAL_MD5='00000000000000000000000000000000'\r\nOTA_TRIAL_SOURCE='1.5.2'\r\nOTA_TRIAL_TARGET='1.5.3'\r\n")
+        code, log = run('cat1', '--source', legacy, '--out', tmp / 'c_legacy')
+        assert code == 0 and 'WARN' in log and 'OTA_TRIAL' in log, log
         # 2. GR images for 1.5.3 (b70 and a different b80), signed by the standalone GR tool
         payload = SIGNED_152.read_bytes()[:-904]
         for build in (70, 80):

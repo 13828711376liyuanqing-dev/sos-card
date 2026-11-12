@@ -2,7 +2,7 @@
 - every 10 s: `at FOTA_STATUS` through the GR CLI -> GR Cat1Svr AO (UART_TX_DATA_SIG) refreshes its 60 s low-power timer
   (a direct cat_at poll does not);
 - if GR reports `rail_request=off`: wait 3 s, `cat1_power on`, then one `cat1_power key` (same sequence GR uses at boot).
-Uses only the GR port (YP_GR_PORT, default COM30). It must NOT open CAT1's own USB ports (COM21/COM23): Luatools needs them,
+Uses only the GR port (YP_GR_PORT, else auto-detected). It must NOT open CAT1's own USB ports (COM21/COM23): Luatools needs them,
 so stop cat1_vuart_log.py before flashing.
 Usage: YP_GR_PORT=COM30 python keep_cat1.py [minutes=25]   (stops by itself; Ctrl-C releases the port)"""
 import os
@@ -10,7 +10,9 @@ import sys
 import time
 import serial
 
-port = os.environ.get('YP_GR_PORT', 'COM30')
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from gr_port import pick  # SAM | 2026-11-09 | the COM number changes: never hard-coded
+port = pick()
 end = time.time() + 60 * float(sys.argv[1] if len(sys.argv) > 1 else 25)
 s = serial.Serial(port, 115200, timeout=0.2)
 
@@ -26,6 +28,9 @@ try:
         t0, buf = time.time(), ''
         while time.time() - t0 < 10:
             buf += s.read(4096).decode('utf-8', 'replace')
+        if os.environ.get('YP_RAW_LOG'):                 # SAM | 2026-11-08 +08:00 | optional full GR output (evidence for guard tests); off by default
+            with open(os.environ['YP_RAW_LOG'], 'a', encoding='utf-8') as rf:
+                rf.write('--- ' + time.strftime('%H:%M:%S') + '\n' + buf)
         for line in buf.splitlines():                    # network / OTA state lines worth keeping
             if ('[CAT1 RX] [MQTT' in line or '[CAT1 RX] [OTA_RX]' in line or 'OTA_HOLD' in line) and 'parse' not in line:
                 say(line.strip()[:160])

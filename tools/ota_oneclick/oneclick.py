@@ -1,11 +1,11 @@
 """YP001 整机 OTA 一键工具：给 GR 编译出的 HEX 和 CAT1 源码两个位置，自动做完全部检查并生成
   1_GR烧写文件       签名后的 GR 固件（bin/hex，给 GR 有线烧写工具用，也是升级包里的 GR 部分）
-  2_CAT1刷机目录     Luatools 用的 USB_IMPORT（接收端：设备当前版本代码 + 冻结了升级包 MD5）
+  2_CAT1刷机目录     目标版本的完整 CAT1 脚本 USB_IMPORT（出厂和换新基线用；OTA 不需要刷它）
   3_上传平台的升级包  整机升级包 zip
   报告.md            每一步的结论、哪些要人确认、下一步怎么做
 
 SAM | 2026-11-02 +08:00 | 把 YP001_工具包 里 4 个工具和 tools/ota 的主机测试串成一条流水线，规则来自技能 yp001-whole-ota-run：
-接收端以实板验证过的代码为底，OTA 受保护文件不许改（tree_sync/ota_guard.py R1），版本/空间/签名/打包校验失败一律停。
+2026-11-10 起 OTA 出厂即可接收，不再生成“接收端”。以实板验证过的代码为底，OTA 受保护文件不许改（tree_sync/ota_guard.py R1），版本/空间/签名/打包校验失败一律停。
 不改源码目录、不碰 Git/SVN、不删任何文件；所有产物在新目录 firmware_releases/ota_<源>_to_<目标>_<时间>/。
 用法：python oneclick.py            菜单
       python oneclick.py run --gr-hex <hex> --cat1-src <目录> [--from 1.5.8 --from-build 12] [--free <字节>] [--no-device] [--auto-prune]
@@ -166,6 +166,17 @@ def pick(kind, title, initial):
 
 
 # ---------- 设备（可选） ----------
+def _gr_port():
+    """SAM | 2026-11-09 | the COM number changes: --env YP_GR_PORT > configured (if present) > auto-detect; '' on failure so dev_read reports it."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'ota'))
+        import gr_port
+        return gr_port.resolve(None, CFG.get('port'))
+    except Exception as exc:
+        print('  ! 串口：' + str(exc).splitlines()[0])
+        return ''
+
+
 def dev_read(port):
     """Query a running GR/CAT1 only; never power, reset or recover either device."""
     return _dev_read(port)
@@ -211,16 +222,12 @@ def patch(path, pairs):
     Path(path).write_bytes(b.encode('utf-8'))
 
 
-def set_versions(src, version, build, source, target, md5):
+def set_versions(src, version, build, source=None, target=None, md5=None):
+    # SAM | 2026-11-10 | OTA is ready from the factory: only the identity is set; source/target/md5 are accepted for old callers and ignored.
     patch(src / 'main.lua', [
         (r'^(VERSION\s*=\s*)"[^"]*"', rf'\g<1>"{vlong(version)}"'),
         (r'^(PRODUCT_VERSION\s*=\s*)"[^"]*"', rf'\g<1>"{version}"'),
-        (r'^(FW_RELEASE_BUILD\s*=\s*)\d+', rf'\g<1>{build}'),
-        (r"^(OTA_TRIAL_MD5\s*=\s*)'[0-9a-f]+'", rf"\g<1>'{md5}'"),
-        (r"^(OTA_TRIAL_SOURCE\s*=\s*)'[^']*'", rf"\g<1>'{source}'"),
-        (r"^(OTA_TRIAL_TARGET\s*=\s*)'[^']*'", rf"\g<1>'{target}'")])
-    patch(src / 'ota_trial.lua', [(r"(profile\.source~=)'[^']*'", rf"\g<1>'{source}'"), (r"(profile\.target~=)'[^']*'", rf"\g<1>'{target}'")])
-    patch(src / 'ota_native_fota.lua', [(r"(state\.job\.source==)'[^']*'", rf"\g<1>'{source}'"), (r"(state\.job\.version==)'[^']*'", rf"\g<1>'{target}'")])
+        (r'^(FW_RELEASE_BUILD\s*=\s*)\d+', rf'\g<1>{build}')])
 
 
 CLEAN_BLOCK = '''-- SAM | {day} +08:00 | One-shot recovery (marker): drop the CAT1 OTA journal, candidate files and older clean markers left by earlier rounds. Added by ota_oneclick --clean-ota-log.
@@ -236,9 +243,9 @@ end
 def add_cleanup(src, marker):
     p = src / 'main.lua'
     t = p.read_bytes().decode('utf-8')
-    m = re.search(r'^OTA_TRIAL_MD5\s*=', t, re.M)
+    m = re.search(r'^local first_trial_profile=', t, re.M)
     if not m:
-        raise Fail('main.lua 里找不到 OTA_TRIAL_MD5 赋值行')
+        raise Fail('main.lua 里找不到 first_trial_profile 赋值行')
     i = m.start()
     block = CLEAN_BLOCK.format(day=time.strftime('%Y-%m-%d'), marker=marker).replace('\n', '\r\n')
     p.write_bytes((t[:i] + block + t[i:]).encode('utf-8'))
@@ -352,7 +359,7 @@ def run_all(a, check_only=False):
     R.step('确定设备当前版本（升级起点）')
     dev = None
     if not a.no_device and a.from_ver is None:
-        dev, why = dev_read(CFG['port'])
+        dev, why = dev_read(_gr_port())
         if dev:
             R.ok(f'读到设备：GR {dev.get("version")}/b{dev.get("build")}，CAT1 可用 {dev["free"]} 字节（已用 {dev["used"]}/{dev["total"]} 块）')
         else:
@@ -369,7 +376,7 @@ def run_all(a, check_only=False):
     R.done()
 
     R.step('CAT1 空间和主机测试')
-    work_probe = tmp / 'probe_receiver'  # 接收端形态（版本=设备当前版本）：容量和流程测试都按它查，USB_IMPORT 的容量限制就是它
+    work_probe = tmp / 'probe_receiver'  # 2026-11-10: 目标源码的副本（身份按设备当前版本）：容量和流程测试按它查
     copy_cat1(cat_src, work_probe)
     set_versions(work_probe, src_v, src_b, src_v, to_v, 'f' * 32)
     rc, text = sh([CAT_TOOL, '--source', work_probe, '--check-only'], tmp / 'cat_check.txt')
@@ -398,7 +405,7 @@ def run_all(a, check_only=False):
         R.step('设备可用空间')
         free = a.free or (dev or {}).get('free')
         if free is None and not a.no_device:
-            dev, why = dev_read(CFG['port'])
+            dev, why = dev_read(_gr_port())
             free = (dev or {}).get('free')
         need = body + 904 + B['ota_reserve'] + B['ota_growth_margin']
         if free is None:
@@ -465,10 +472,10 @@ def run_all(a, check_only=False):
     free = a.free if a.free else None
     if free is None and not a.no_device:
         if dev is None:
-            dev, why = dev_read(CFG['port'])
+            dev, why = dev_read(_gr_port())
         free = (dev or {}).get('free')
     if free is None:
-        raise Fail('没有设备空间读数：接上板子（COM26 不被占用），或用 --free <字节>（必须是 cat_at OTA_FS 的真实读数，不能估）')
+        raise Fail('没有设备空间读数：接上板子（GR 命令口没被别的程序占用），或用 --free <字节>（必须是 cat_at OTA_FS 的真实读数，不能估）')
     R.ok(f'设备可用空间 {free} 字节' + ('' if not a.free else '（手填）'))
     apply_budget(R, B, None, {}, gr_body=body, free=free)
     pdir = work / 'pkg'
@@ -490,24 +497,17 @@ def run_all(a, check_only=False):
     R.ok('签名、清单、组件摘要、版本和大小检查通过')
     R.done()
 
-    R.step('生成 CAT1 刷机目录（接收端）')
-    rcv = work / 'receiver_source'
-    copy_cat1(cat_src, rcv)
-    set_versions(rcv, src_v, src_b, src_v, to_v, md5)
+    R.step('生成 CAT1 刷机目录（目标版本的完整脚本，出厂用）')
+    fac = work / 'factory_source'
+    copy_cat1(tgt, fac)
     if a.clean_ota_log:
-        add_cleanup(rcv, f'/yp001_clean_{time.strftime("%m%d%H%M")}')
+        add_cleanup(fac, f'/yp001_clean_{time.strftime("%m%d%H%M")}')
         R.ok('已加入一次性清理块：刷机后第一次开机清掉 OTA 状态、候选文件和旧清理标记', 'warn')
-    rc, text = sh([sys.executable, PROJECT / 'tools/ota/test_ota152_flow.py', rcv], work / 'logs' / 'host_receiver.txt', env=env)
-    need_ok(rc, text, '接收端主机测试')
-    R.ok('接收端全链路主机测试通过')
     rout = work / 'receiver_out'
-    rc, text = sh([CAT_TOOL, '--source', rcv, '--out', rout, '--force'], work / 'logs' / 'cat_import.txt')
+    rc, text = sh([CAT_TOOL, '--source', fac, '--out', rout, '--force'], work / 'logs' / 'cat_import.txt')
     need_ok(rc, text, '生成 USB_IMPORT')
     integ = load(rout / 'integrity.json', {})
-    main_txt = (rout / 'USB_IMPORT' / 'main.lua').read_text(encoding='utf-8', errors='replace')
-    if md5 not in main_txt:
-        raise Fail('USB_IMPORT 的 main.lua 里没有冻结的升级包 MD5')
-    R.ok(f'LuaDB {integ.get("luadb_bytes")}/{integ.get("capacity")}，接收端 {src_v}/b{src_b}，已冻结 MD5 {md5[:8]}…')
+    R.ok(f'LuaDB {integ.get("luadb_bytes")}/{integ.get("capacity")}，版本 {to_v}/b{to_b}（OTA 不需要刷它；出厂或台架换新基线时用）')
     R.done()
 
     R.step('整理输出')
@@ -546,7 +546,7 @@ def run_all(a, check_only=False):
 
     print('\n' + C('green', C('bold', f'全部完成（{time.time() - t_all:.0f} s）')))
     print(f'  {C("bold", "GR 烧写文件")}      {d_gr}')
-    print(f'  {C("bold", "CAT1 刷机目录")}    {d_cat / "USB_IMPORT"}   （Luatools 刷，保留 FS/KV）')
+    print(f'  {C("bold", "CAT1 刷机目录")}    {d_cat / "USB_IMPORT"}   （出厂/换新基线用，OTA 不需要刷）')
     print(f'  {C("bold", "上传平台的包")}      {d_up / zp.name}   MD5 {md5}')
     print(C('dim', f'  报告：{out / "报告.md"}'))
     print(C('yellow', '  下一步：刷 CAT1 → 上传升级包把下载地址发给 Claude → Claude 预检并发起 OTA；成功后在菜单选「记录 OTA 已成功」'))
@@ -558,7 +558,7 @@ def write_report(out, R, info, res, body, free, zp, sbin, d_cat, at, a):
          f'升级范围：**{info["from_version"]}/b{info["from_build"]} → {info["to_version"]}/b{info["to_build"]}**', '',
          '| 产物 | 位置 |', '|---|---|',
          f'| GR 烧写文件 | `1_GR烧写文件\\{sbin.name}`（及 .hex） |',
-         f'| CAT1 刷机目录 | `2_CAT1刷机目录\\USB_IMPORT`（Luatools 刷，保留 FS/KV；刷前停掉占 COM21/COM23 的日志） |',
+         f'| CAT1 刷机目录 | `2_CAT1刷机目录\\USB_IMPORT`（目标版本完整脚本：出厂或台架换新基线用，**OTA 不需要刷它**） |',
          f'| 上传平台的升级包 | `3_上传平台的升级包\\{zp.name}`，**MD5 `{info["md5"]}`** |', '',
          f'设备 CAT1 可用空间 {free} 字节；GR 应用正文 {body} 字节。', '', '## 每一步', '']
     cur = None
@@ -570,10 +570,10 @@ def write_report(out, R, info, res, body, free, zp, sbin, d_cat, at, a):
           f'- 精确清单评审主体 {at.get("reviewer")}；依据：{at.get("evidence", "")}；目标实板验收仍 pending。',
           '- 主机测试通过 ≠ 实板通过；同事新增的业务功能没有因为这次打包而被实板验证。',
           '- 升级包的 GR 部分与 `1_GR烧写文件` 里的是同一份签名镜像。',
-          '- 清理 OTA 历史' + ('：接收端带一次性清理块（刷机后首次开机执行）。' if a.clean_ota_log else '：接收端没带清理块；设备空间由本次读数保证。'), '',
+          '- 清理 OTA 历史' + ('：刷机目录带一次性清理块（刷机后首次开机执行）。' if a.clean_ota_log else '：刷机目录没带清理块；设备空间由本次读数保证。'), '',
           '## 下一步', '',
-          '1. Luatools 刷 `2_CAT1刷机目录\\USB_IMPORT`；确认 main.lua 里 `OTA_TRIAL_MD5` 是上面的 MD5。',
-          '2. 上传 `3_上传平台的升级包` 里的 zip 到平台，把下载地址发给 Claude（核对 MD5、预检、发起 OTA）。',
+          '1. 上传 `3_上传平台的升级包` 里的 zip 到平台，核对 MD5；设备在线，后台推送（不需要刷接收端、不需要逐台刷机）。',
+          '2. 把下载地址发给 Claude（核对 MD5、预检、发起 OTA）。',
           '3. 实板通过后，done 必须提供 --device-evidence、--device-reviewer、--device-reason，独立记录实际验收范围。']
     (out / '报告.md').write_text('\n'.join(L) + '\n', encoding='utf-8')
 
@@ -623,7 +623,7 @@ def cmd_status(a):
 
 
 def cmd_device(a):
-    info, why = dev_read(CFG['port'])
+    info, why = dev_read(_gr_port())
     if not info:
         raise Fail(why)
     print(f'GR {info.get("version")}/b{info.get("build")}；CAT1 已用 {info["used"]}/{info["total"]} 块，可用 {info["free"]} 字节')
@@ -631,7 +631,7 @@ def cmd_device(a):
 
 MENU = [('run', '一键生成（选 GR HEX 和 CAT1 源码 → GR 烧写文件 + CAT1 刷机目录 + 上传包）'),
         ('check', '只检查，不生成文件（版本 / OTA 规则 / 空间 / 主机测试）'),
-        ('device', '读设备版本和 CAT1 可用空间（接板子，COM26）'),
+        ('device', '读设备版本和 CAT1 可用空间（接板子，串口自动识别）'),
         ('done', 'OTA 实板成功后：记录设备证据（冻结基线另行晋升）'),
         ('status', '查看当前记录')]
 
@@ -716,7 +716,7 @@ if __name__ == '__main__':
         if not (s.isdigit() and 1 <= int(s) <= len(MENU)):
             print(C('red', '没有这个编号。')); continue
         extra = []
-        if MENU[int(s) - 1][0] in ('run', 'check') and input('接了板子并且 COM26 没被占用吗？(y=读设备版本和空间，其他=不连板子)：').strip().lower() != 'y':
+        if MENU[int(s) - 1][0] in ('run', 'check') and input('接了板子并且 GR 命令口没被占用吗？(y=读设备版本和空间，其他=不连板子)：').strip().lower() != 'y':
             extra = ['--no-device']
         if MENU[int(s) - 1][0] in ('run', 'check'):
             extra = pick_paths(extra)

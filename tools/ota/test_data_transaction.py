@@ -3,6 +3,10 @@ from test_native_fota import check
 
 SETUP = '''
 job.source='1.0.2';port.require_data_identity=true
+-- SAM | 2026-11-10 | production gate: the unverified-KV scope follows ota_trial (device identity + a real upgrade); `running` is the version the device runs now
+running='1.0.2'
+port.first_trial=require('ota_trial').new({core_sha256='29a3f2dc4eb07badc1093bf8b48f04fa54b40a6d537d1c0814dcfadf53693eec',evidence_sha256=string.rep('a',64)},
+ function()return {model='Air780EGH',core='V2052',bits=64,fs_bytes=524288,version=running} end)
 local digest=string.rep('b',64);local snapshots=0
 port.data_snapshot=function(j,path,boot)
  snapshots=snapshots+1
@@ -14,6 +18,7 @@ check('scoped first OTA compares files and persists KV unaccepted', SETUP+'''
 port.allow_unavailable_kv=true
 port.data_snapshot=function()return {schema=1,complete=true,digest=digest,scope='root_files_kv_unverified',kv_unverified=true,files=1,keys=0}end
 assert(f:start(job,'candidate',7));assert(f:step());assert(f:step());assert(f:step())
+running=job.version   -- the install rebooted the device into the TARGET version: the data comparison must still work (11-10 board bug)
 f=module.new(port);assert(f:observe_boot_data())
 local e=f:data_evidence(job,7,100)
 assert(e.data_ok and e.data_scope=='root_files_kv_unverified' and e.kv_acceptance=='UNVERIFIED')
@@ -29,11 +34,16 @@ port.data_snapshot=function()return {schema=1,complete=true,digest=digest,scope=
 f=module.new(port);assert(not f:observe_boot_data())
 ''')
 # SAM | 2026-10-24 +08:00 | First-upgrade approval must not authorize unreadable KV for unrelated future releases.
-check('scoped approval rejects another source or target version', SETUP+'''
+# SAM | 2026-11-10 | Production gate: the scope is no longer one written-in release pair. It needs a real upgrade (target higher than source) and the device
+# running either of the two; a source that is not the running version, a non-upgrade or a foreign running version is still refused.
+check('scoped approval needs a real upgrade of the running version', SETUP+'''
 port.allow_unavailable_kv=true
 port.data_snapshot=function()return {schema=1,complete=true,digest=digest,scope='root_files_kv_unverified',kv_unverified=true,files=1,keys=0}end
-job.source='1.0.1';assert(not f:start(job,'candidate',7) and #calls==0)
-job.source='1.0.2';job.version='1.6.0';assert(not f:start(job,'candidate',7) and #calls==0)
+job.source='1.0.1';assert(not f:start(job,'candidate',7) and #calls==0)            -- source is not what the device runs
+job.source='1.0.2';job.version='1.0.2';assert(not f:start(job,'candidate',7) and #calls==0)   -- not an upgrade
+job.version='1.0.1';assert(not f:start(job,'candidate',7) and #calls==0)            -- a downgrade
+job.version='1.5.0';running='9.9.9';assert(not f:start(job,'candidate',7) and #calls==0)      -- the device runs a version that is neither source nor target
+running='1.0.2';job.version='1.6.0';assert(f:start(job,'candidate',7))             -- any higher target of the running version is fine
 ''')
 check('data baseline persists before native init and boot evidence survives lawful later writes', SETUP+'''
 assert(f:start(job,'candidate',7));assert(disk.data_baseline.digest==digest)

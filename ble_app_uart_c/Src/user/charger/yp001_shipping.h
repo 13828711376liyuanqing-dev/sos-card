@@ -80,4 +80,72 @@ static inline bool yp_ship_cancel(yp_ship_t *s) {
     s->phase=YP_SHIP_IDLE; s->token=0; s->reason="cancelled before BATFET write";
     return true;
 }
+/* SAM | 2026-11-08 20:30 +08:00 | Run the approved single request in foreground;
+ * terminal jobs are retained so an uncertain BATFET write is never retried. */
+typedef enum {
+    YP_SHIP_AUTO_IDLE, YP_SHIP_AUTO_CHECKING, YP_SHIP_AUTO_SENT,
+    YP_SHIP_AUTO_FAILED, YP_SHIP_AUTO_UNKNOWN, YP_SHIP_AUTO_WAIT_USB
+} yp_ship_auto_phase_t;
+typedef struct {
+    yp_ship_auto_phase_t phase;
+    uint32_t since;
+    const char *reason;
+} yp_ship_auto_t;
+typedef struct {
+    const char *(*guard)(void); /* NULL grants eligibility; otherwise a stable reason code. */
+    int (*usb)(void); /* -1 unknown, 0 absent, 1 present. */
+    bool (*prepare)(void);
+    bool (*confirm)(uint32_t token);
+    void (*cancel)(void);
+} yp_ship_auto_port_t;
+static inline bool yp_ship_auto_active(const yp_ship_auto_t *job)
+{
+    return job->phase==YP_SHIP_AUTO_WAIT_USB || job->phase==YP_SHIP_AUTO_CHECKING;
+}
+static inline bool yp_ship_auto_start(yp_ship_auto_t *job,uint32_t now,const yp_ship_auto_port_t *port)
+{
+    if (job->phase!=YP_SHIP_AUTO_IDLE)
+        return yp_ship_auto_active(job) || job->phase==YP_SHIP_AUTO_SENT;
+    job->since=now;
+    job->reason=port->guard();
+    if (job->reason) { job->phase=YP_SHIP_AUTO_FAILED; return false; }
+    job->phase=YP_SHIP_AUTO_WAIT_USB;
+    job->reason="remove_card_USB";
+    return true;
+}
+static inline void yp_ship_auto_poll(yp_ship_auto_t *job,yp_ship_t *low,uint32_t now,const yp_ship_auto_port_t *port)
+{
+    if (!yp_ship_auto_active(job)) return;
+    const char *reason=port->guard();
+    if (reason) {
+        if (!low->disconnect_attempted && yp_ship_locked(low)) port->cancel();
+        job->phase=low->disconnect_attempted?YP_SHIP_AUTO_UNKNOWN:YP_SHIP_AUTO_FAILED;
+        job->reason=reason;
+        return;
+    }
+    if (job->phase==YP_SHIP_AUTO_WAIT_USB) {
+        int input=port->usb();
+        if (input<0 || (uint32_t)(now-job->since)>=60000U) {
+            job->phase=YP_SHIP_AUTO_FAILED;
+            job->reason=input<0?"input_state_unknown":"USB_wait_timeout";
+        } else if (!input) {
+            bool ok=port->prepare();
+            job->phase=ok?YP_SHIP_AUTO_CHECKING:
+                (low->disconnect_attempted?YP_SHIP_AUTO_UNKNOWN:YP_SHIP_AUTO_FAILED);
+            job->reason=ok?"qualifying":"prepare_rejected";
+        }
+        return;
+    }
+    if (low->phase==YP_SHIP_READY) {
+        bool ok=port->confirm(low->token);
+        job->phase=ok?YP_SHIP_AUTO_SENT:
+            (low->disconnect_attempted?YP_SHIP_AUTO_UNKNOWN:YP_SHIP_AUTO_FAILED);
+        job->reason=ok?"BATFET_readback_confirmed":
+            (low->disconnect_attempted?"BATFET_write_uncertain":"confirm_rejected");
+    } else if (low->phase==YP_SHIP_FAILED || low->phase==YP_SHIP_IDLE) {
+        job->phase=low->disconnect_attempted?YP_SHIP_AUTO_UNKNOWN:YP_SHIP_AUTO_FAILED;
+        job->reason="qualification_failed";
+    }
+    if (job->phase==YP_SHIP_AUTO_FAILED && yp_ship_locked(low)) port->cancel();
+}
 #endif

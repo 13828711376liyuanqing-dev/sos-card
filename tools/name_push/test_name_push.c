@@ -4,6 +4,7 @@
  * NOR semantics (erase = FF, write only clears bits), write cut-off (power loss) and erase/write failures; legacy NVDS migration. */
 #include "yp001_business.h"
 #include "yp_name_glyphs.h"
+#include "AOs.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -67,7 +68,11 @@ static char big[64][1024];
 static unsigned nbig;
 
 bool yp_business_port_time(uint32_t epoch) { return epoch > 0; }
-void start_sos_process(void) {}
+void start_sos_process(bool bStart) { (void)bStart; }
+bool yp001_ota_power_change_allowed(void) { return true; }
+int cli_printf(const char *fmt, ...) { (void)fmt; return 0; }
+ParaConfig_t g_config;
+ParaBindMsg_t g_bind_msg;
 /* SAM | 2026-11-04 +08:00 | Name tests do not run QP; emulate successful queue admission. */
 bool yp_business_port_sos(bool start) { (void)start; return true; }
 bool yp_business_port_send(const char *line, size_t n) {

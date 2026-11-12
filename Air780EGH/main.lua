@@ -4,21 +4,17 @@
 用于探测哪个模块的初始化是 UART1 正常通信所必需的
 ]]
 PROJECT = "YP01_CAT1"
--- SAM | 2026-11-07 12:53 +08:00 | Source identity set by YpVersionTool; rebuild GR and CAT1 before use.
-VERSION = "001.005.019"
-PRODUCT_VERSION = "1.5.19"
-FW_RELEASE_BUILD = 23
+-- SAM | 2026-11-10 17:54 +08:00 | Source identity set by YpVersionTool; rebuild GR and CAT1 before use.
+VERSION = "001.005.032"
+PRODUCT_VERSION = "1.5.32"
+FW_RELEASE_BUILD = 36
 
 -- 全局 AT 命令表初始化
 _G.at_cmd_handlers = {}
--- SAM | 2026-10-30 09:13 +08:00 | Receiver for the device now on 1.5.2/b6; next range 1.5.2->1.5.3, MD5 not frozen yet.
--- OTA receiver settings. VERSION/PRODUCT_VERSION/FW_RELEASE_BUILD must equal what the device runs now.
--- OTA_TRIAL_MD5 freezes the only bundle `cat_at OTA_TRIAL=<url>` may start (all zeros = none); source/target give its range.
+-- SAM | 2026-11-10 +08:00 | OTA is ready from the factory: no receiver build, no frozen MD5, no version range written here. The device upgrades from the
+-- version it runs now (PRODUCT_VERSION) to any higher version that carries a valid signed bundle and authorization (see ota_trial.lua).
 -- The OTA runtime and the boot-time user-data read must start before the business modules below.
-OTA_TRIAL_MD5='00000000000000000000000000000000'
-OTA_TRIAL_SOURCE='1.5.7'
-OTA_TRIAL_TARGET='1.5.8'
-local first_trial_profile={source=OTA_TRIAL_SOURCE,target=OTA_TRIAL_TARGET,core_sha256='29a3f2dc4eb07badc1093bf8b48f04fa54b40a6d537d1c0814dcfadf53693eec',evidence_sha256='e47561bd6b33ff2926aea08fd56bebd264a83d754571b41565bfb07916b2877b'}
+local first_trial_profile={core_sha256='29a3f2dc4eb07badc1093bf8b48f04fa54b40a6d537d1c0814dcfadf53693eec',evidence_sha256='e47561bd6b33ff2926aea08fd56bebd264a83d754571b41565bfb07916b2877b'}
 local trial_runtime=require('ota_runtime')
 local manual_options=require('ota_device_options')
 trial_runtime.set_instance(trial_runtime.new(manual_options.new(first_trial_profile)))

@@ -198,19 +198,21 @@ _G.at_cmd_handlers.OTA_PRUNE = function(cmd, send)
     send('OTA_PRUNE='..(done and ('DONE '..#text) or tostring(why)))
 end
 
--- cat_at OTA_TRIAL=<url>: local start (no platform push yet). Only the bundle frozen in main.lua (OTA_TRIAL_MD5, also
--- required in the URL), only from OTA_TRIAL_SOURCE. accept() still verifies the signed bundle and needs GR authority.
+-- SAM | 2026-11-10 +08:00 | cat_at OTA_TRIAL=<target_version> <url>: local start for the bench (no platform push). The URL must carry
+-- md5=<32 hex> (the platform download URLs do). The source is always the version this device runs now, the target only has to be
+-- higher (checked later); accept() still verifies the signed bundle and needs GR authority.
 _G.at_cmd_handlers.OTA_TRIAL = function(cmd, send)
-    local md5, url = _G.OTA_TRIAL_MD5, cmd:match('^OTA_TRIAL=(https?://%S+)$')
-    if not md5 or md5:find('^0+$') or not url or #url>1024 or not url:find('md5='..md5, 1, true) or
-        _G.PRODUCT_VERSION~=_G.OTA_TRIAL_SOURCE then
+    local target, url = cmd:match('^OTA_TRIAL=(%d+%.%d+%.%d+) (https?://%S+)$')
+    local md5 = url and url:match('[?&]md5=(%x+)')
+    if not target or not url or #url>1024 or not md5 or #md5~=32 or md5:find('^0+$') then
         send('OTA_TRIAL=REFUSED')
         return
     end
+    md5 = md5:lower()
     ota_hold(true)
     sys.taskInit(function()
-        local c, ok, why = pcall(instance.accept, instance, {MsgType='otaMsg', CurrentVersion=_G.OTA_TRIAL_SOURCE,
-            TargetVersion=_G.OTA_TRIAL_TARGET, Address=url, Md5=md5, Time=os.time()})
+        local c, ok, why = pcall(instance.accept, instance, {MsgType='otaMsg', CurrentVersion=_G.PRODUCT_VERSION,
+            TargetVersion=target, Address=url, Md5=md5, Time=os.time()})
         send('OTA_TRIAL='..(c and ok and 'WAIT_GR' or tostring(why)))
     end)
 end

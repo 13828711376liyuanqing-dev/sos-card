@@ -1,0 +1,12 @@
+{
+  "boot_source": "tools\\gr_release\\GR_JLink_Flash\\logs\\20261108_210123_1.5.25_b29\\boot_paired.bin",
+  "boot_sha256": "66deeecb32f168b973e750babbd9344a14a049f3ff42c0756d1ee5b5cf567b0c",
+  "descriptor_offset": 29168,
+  "boot_normalized_sha256": "ca8f2a243288b93ddfeed90958dedfb46a715277bfd609f540a0f5f5dee2d599",
+  "public_sha256": "6f9ff6c1e1f7d1f12e6955ad9886329563bad196dc79d32da1bb16d4d758cfe1",
+  "evidence": [
+    "logs/ship_forced_flash_20261108/gr_flash.log",
+    "doc/2026-11-09_双端OTA实测_1.5.24到1.5.26_含强制船运_记录.md"
+  ],
+  "scope": "Existing Boot reused. First-initialization device acceptance remains pending."
+}

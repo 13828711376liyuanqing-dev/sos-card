@@ -1,11 +1,11 @@
 {
-    "schema":  1,
-    "product":  "YP001",
-    "release_version":  "1.5.19",
-    "component_version":  "001.005.019",
-    "gr_build":  23,
-    "updated_local":  "2026-11-07 12:53 +08:00",
-    "source":  "SOURCE_IDENTITY_ONLY_REBUILD_REQUIRED",
-    "main_header":  "ble_app_uart_c/Src/config/yp001_fw_version.h",
-    "cat1_source":  "Air780EGH/main.lua"
+    "schema": 1,
+    "product": "YP001",
+    "release_version":  "1.5.33",
+    "component_version":  "001.005.033",
+    "gr_build":  37,
+    "updated_local":  "2026-11-12 22:40 +08:00",
+    "source": "SLEEP_DIAGNOSTIC_CANDIDATE_REBUILD_AND_DEVICE_TEST_REQUIRED",
+    "main_header": "ble_app_uart_c/Src/config/yp001_fw_version.h",
+    "cat1_source": "Air780EGH/main.lua"
 }

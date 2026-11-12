@@ -2,6 +2,7 @@
 #include "tk_beacon_parser.h"
 #include "ble_scanner.h"
 #include "business/yp001_business.h"
+#include "ota/yp001_ota.h"
 #include "yp001_board_config.h"
 #include "app_uart.h"
 #include "cJSON.h"
@@ -13,7 +14,7 @@
 #include <stdarg.h>
 
 #define BLE_SCAN_TEST
-#define CAT1_CONFIG_TEST
+
 //#define CAT1_LOG_DEBUG
 
 #ifdef CAT1_LOG_DEBUG
@@ -48,6 +49,8 @@ static uint32_t s_tx_last_push_ms;      /* 上次入队时刻(节流 YP_SCAN_POL
 static bool s_battery_stopped;          /* 电量停止状态(带滞回)：true=周期停止，回升到 stop+2% 才恢复 */
 
 extern uint64_t get_current_unix_timestamp(void);
+extern void Cat_offline(void);
+extern int Cat_send_low_batt(int batt_level);
 
 /* 服务器下发参数(带设备默认兜底)：未下发或 <=0 时用设备默认 */
 static uint32_t cfg_interval_min(void)
@@ -233,6 +236,7 @@ void yp_scan_sched_on_adv_report(void const *p_adv)
     {
         int idx = -1;
         uint8_t i;
+		printf("[SCAN_SCHED] count = %d\r\n",p->count);
         for (i = 0; i < p->count; i++) {
             if (memcmp(p->list[i].addr, addr, 6U) == 0) { idx = i; break; }
         }
@@ -273,6 +277,17 @@ static uint16_t report_build_next(void)
     char *json, *topic;
     int n;
 
+	BeaconScanResult *r = &s_history[s_last_reported % YP_SCAN_HISTORY_CAP];
+	uint8_t j;
+	
+	cli_printf("[SCAN_SCHED] report_build_next s_last_reported = %d,s_start_reported = %d \n",s_last_reported,s_start_reported);
+
+	if(r->count == 0)
+	{
+		cli_printf("[SCAN_SCHED] report_build_next no ble count \n");
+		return 0;
+	}
+
     root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "MsgType", get_msg_type(LOCATE_TYPE_PERIOD));
     cJSON_AddNumberToObject(root, "Battery", b->battery_known ? b->battery_percent : 80);
@@ -281,8 +296,6 @@ static uint16_t report_build_next(void)
 	
     arr = cJSON_CreateArray();
     {
-        BeaconScanResult *r = &s_history[s_last_reported % YP_SCAN_HISTORY_CAP];
-        uint8_t j;
 
         for (j = 0U; j < r->count; j++) {
             bi = cJSON_CreateObject();
@@ -303,10 +316,14 @@ static uint16_t report_build_next(void)
 	    n = snprintf(s_tx_line, sizeof(s_tx_line), "MQTT_SEND=%s,%s\r\n",
 	                 topic ? topic : "", json);
 	    if (topic != NULL) free(topic);
+
+		cli_printf("[SCAN_SCHED] report_build_next send period ble \n");
 	}
 	else
 	{
         n = snprintf(s_tx_line, sizeof(s_tx_line), "BEACON_DATA=%d,%s\r\n", s_last_reported - s_start_reported, json);
+
+		cli_printf("[SCAN_SCHED] report_build_next send history ble \n");
 	}
     cJSON_free(json);
     cJSON_Delete(root);
@@ -338,7 +355,7 @@ static bool report_push_next(void)
         return false; 
     }
     //rc = Cat1Svr_send_async(&AO_Cat1Svr, (uint8_t *)s_tx_line, n);
-    rc = app_uart_transmit_sync(APP_UART_ID_4, (uint8_t *)s_tx_line, n, 1000);
+    rc = app_uart_transmit_async(APP_UART_ID_4, (uint8_t *)s_tx_line, n);
     if (rc != APP_DRV_SUCCESS && rc != APP_DRV_ERR_BUSY) {
         s_tx_failed++;
         if (s_tx_failed >= YP_TX_SEND_RETRY_COUNT) {
@@ -358,9 +375,11 @@ static bool report_push_next(void)
 
 static bool report_start(uint32_t pending)
 {
-    size_t imei_len = strlen(AO_Cat1Svr.IMEI);
+    const yp_business_status_t *b;
 
-    if (imei_len == 0U) {
+	b = yp_business_status();
+
+    if (strlen(b->imei) == 0U) {
         cli_printf("[SCAN_SCHED] report skipped: IMEI unknown\r\n");
         return false;
     }
@@ -392,7 +411,8 @@ bool yp_scan_sched_report_pending(bool bForce)
         cli_printf("[SCAN_SCHED] report force when %d/%d\r\n", s_start_reported, s_last_reported);
         s_start_reported = s_last_reported;
         n = snprintf(s_tx_line, sizeof(s_tx_line), "BEACON_DATA_FORCE=%d\r\n", s_last_reported);
-        rc = Cat1Svr_send_async(&AO_Cat1Svr, (uint8_t *)s_tx_line, n);
+        //rc = Cat1Svr_send_async(&AO_Cat1Svr, (uint8_t *)s_tx_line, n);
+        rc = app_uart_transmit_async(APP_UART_ID_4, (uint8_t *)s_tx_line, n);
     } else {
         uint32_t pending = s_scan_total - s_last_reported;
         return report_start(pending);
@@ -407,6 +427,10 @@ void yp_scan_sched_poll(uint32_t now_ms)
 
     if ((uint32_t)(now_ms - s_last_ms) < YP_SCAN_POLL_INTERVAL_MS) return;
     s_last_ms = now_ms;
+
+    /* SAM | 2026-11-08 +08:00 | OTA control-event demotion: the colleague scheduler is enabled at boot and reports over UART4 directly;
+     * while an OTA transaction is protected it must not start scans, send reports, low-battery or offline messages. State is kept and resumes afterwards. */
+    if (!yp001_ota_power_change_allowed()) return;
 
     if (s_tx_reporting) {
         if ((uint32_t)(now_ms - s_tx_last_push_ms) >= YP_SCAN_POLL_INTERVAL_MS) {
@@ -434,7 +458,7 @@ void yp_scan_sched_poll(uint32_t now_ms)
     /* 电量兜底：< PowerThreshold 停止周期上报(扫描一并停止，省电)。
      * 滞回：回升到 stop+YP_SCAN_BATTERY_HYST_PCT 才恢复，防临界抖动反复启停；
      * battery_known 未知时不限制(保持原语义)。 */
-    #if 0
+
     if (b->battery_known) {
         uint32_t pct = (uint32_t)b->battery_percent;
         uint32_t stop_pct = cfg_battery_stop_pct();
@@ -449,6 +473,7 @@ void yp_scan_sched_poll(uint32_t now_ms)
                 stop_scan();
                 s_active = false;
             }
+			Cat_send_low_batt(cfg_battery_stop_pct());
         } else if (s_battery_stopped && pct >= resume_pct) {
             s_battery_stopped = false;
             cli_printf("[SCAN_SCHED] battery %u%% >= %u%%, periodic cycle resumed\r\n",
@@ -456,7 +481,7 @@ void yp_scan_sched_poll(uint32_t now_ms)
         }
         if (s_battery_stopped) return;
     }
-	#endif
+
 	
     if (s_scanning) {
         if (blocked) {
@@ -489,12 +514,13 @@ void yp_scan_sched_poll(uint32_t now_ms)
                                 (uint32_t)s_interval_min * 60000U;
            (void)yp_scan_sched_report_pending(false);
 #ifdef BLE_SCAN_TEST
-            if ((s_last_reported - s_start_reported) > 5)
+            if ((s_last_reported - s_start_reported) > cfg_fallback_min())
 #else
             if ((s_last_reported - s_start_reported) > YP_SCAN_REPORT_EVERY)
 #endif
             {
                 (void)yp_scan_sched_report_pending(true);
+                s_last_report_ms = now_ms;
             }
         }
         if (!yp_motion_moving()) {
@@ -502,6 +528,8 @@ void yp_scan_sched_poll(uint32_t now_ms)
                    (unsigned)s_last_reported - s_start_reported);       
             stop_scan();
             (void)yp_scan_sched_report_pending(true);
+			
+            s_last_report_ms = now_ms;
             s_active = false;
         }
 
@@ -514,14 +542,19 @@ void yp_scan_sched_poll(uint32_t now_ms)
             return;
 
         if (!yp_motion_moving()) {
+            cli_printf("[SCAN_SCHED] s_active motion stop: (pending %u)\r\n",
+                   (unsigned)s_last_reported - s_start_reported); 
             stop_scan();
             (void)yp_scan_sched_report_pending(true);
+			Cat_offline();
+            s_last_report_ms = now_ms;
             s_active = false;
             return;
         }        
         /* PeriodicPara 兜底：距上次上报 >= N 分钟且有未发送 → 时间触发上报 */
         if ((uint32_t)(now_ms - s_last_report_ms) >=
                 cfg_fallback_min() * 60000U) {
+             cli_printf("[SCAN_SCHED] report start: (fallback %u min)\r\n", cfg_fallback_min());
             (void)yp_scan_sched_report_pending(true);
              s_last_report_ms = now_ms;
         }
@@ -542,8 +575,8 @@ void yp_scan_sched_poll(uint32_t now_ms)
                    (unsigned)s_interval_min);
         start_scan(now_ms);
         clear_history();
-        //cli_execute_string("cat1_power on");
-        //cli_execute_string("cat1_power key");
+        cli_execute_string("cat1_power on");
+        cli_execute_string("cat1_power key");
     }
 
 }

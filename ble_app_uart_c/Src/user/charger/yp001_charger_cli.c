@@ -12,6 +12,9 @@
  * ship cuts MCU supply and only adapter insertion is supported for wake. */
 static int cmd_ship(int argc, char *argv[])
 {
+    /* SAM | 2026-11-08 20:30 +08:00 | Factory operators start one GR-owned asynchronous transaction. */
+    if (argc == 3 && !strcmp(argv[2], "start"))
+        return yp001_charger_ship_start() ? 0 : -1;
     if (argc == 3 && !strcmp(argv[2], "status")) {
         yp001_charger_ship_status(); return 0;
     }
@@ -29,7 +32,7 @@ static int cmd_ship(int argc, char *argv[])
         if (errno || *end || !token || strlen(argv[3]) > 10U) return -1;
         return yp001_charger_ship_confirm((uint32_t)token) ? 0 : -1;
     }
-    cli_printf("Usage: charger ship prepare|status|cancel|confirm <token>\r\n");
+    cli_printf("Usage: charger ship start|prepare|status|cancel|confirm <token>\r\n");
     return -1;
 }
 
@@ -92,13 +95,14 @@ static int cmd_charger(int argc, char *argv[])
                (status.power_raw >> 4U) & 1U, (status.power_raw >> 5U) & 1U,
                (status.timer_raw >> 4U) & 3U, (status.timer_raw >> 3U) & 1U,
                (status.timer_raw >> 7U) & 1U, status.precharge_ma, status.termination_ma);
-    cli_printf("REG01=%02X REG03=%02X REG05=%02X REG0D=%02X FAULT_HISTORY=%02X FAULT_NOW=%02X\r\n",
-               status.power_raw, status.pre_term_raw, status.timer_raw, status.fine_raw,
+    /* SAM | 2026-11-12 22:40 +08:00 | Expose REG00 bit5 because the FAE mask change cannot be assessed from IIN_LIMIT alone. */
+    cli_printf("REG00=%02X REG01=%02X REG03=%02X REG05=%02X REG0D=%02X FAULT_HISTORY=%02X FAULT_NOW=%02X\r\n",
+               status.input_raw, status.power_raw, status.pre_term_raw, status.timer_raw, status.fine_raw,
                status.fault_history, status.fault);
     return 0;
 }
 
 /* SAM | 2026-10-09 21:25 +08:00 | Describe auto mode and the held stop
  * because a user stop must not be undone by the next idle poll. */
-/* SAM | 2026-10-13 14:03 +08:00 | Expose adapter-wake ship workflow in help. */
-CLI_CMD_REGISTER("charger", "probe/status; prepare/start/stop; ship prepare/status/confirm <token>/cancel", cmd_charger);
+/* SAM | 2026-11-08 20:30 +08:00 | Expose the single factory entry alongside the legacy engineering commands. */
+CLI_CMD_REGISTER("charger", "probe/status; prepare/start/stop; ship start/status; legacy prepare/confirm <token>/cancel", cmd_charger);

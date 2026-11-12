@@ -1,6 +1,6 @@
-"""SAM | 2026-10-29 11:49 +08:00 | COM26 OTA monitor (Python; PowerShell unavailable): optionally send one start command, then append every
+"""SAM | 2026-10-29 11:49 +08:00 | GR-port OTA monitor (Python; PowerShell unavailable): optionally send one start command, then append every
 non-noise line with a timestamp to the log and poll CAT1 FOTA_STATUS at a fixed interval. Read-only apart from the optional start command.
-Usage: python ota_monitor.py --log file [--start "cat_at ..."] [--minutes 5] [--poll-sec 60] [--port COM26]"""
+Usage: python ota_monitor.py --log file [--start "cat_at ..."] [--minutes 5] [--poll-sec 60] [--port COMx]"""
 import argparse
 import re
 import time
@@ -16,8 +16,10 @@ def main():
     ap.add_argument('--start')
     ap.add_argument('--minutes', type=float, default=5)
     ap.add_argument('--poll-sec', type=float, default=60)
-    ap.add_argument('--port', default='COM26')
+    ap.add_argument('--port', default=None, help='GR serial port; default: YP_GR_PORT or auto-detect')
     a = ap.parse_args()
+    from gr_port import pick  # SAM | 2026-11-09 | the COM number changes: never hard-coded
+    a.port = pick(a.port)
     with serial.Serial(a.port, 115200, timeout=0.1) as s, open(a.log, 'a', encoding='utf-8', buffering=1) as w:
         note = lambda t: w.write(datetime.now().strftime('%H:%M:%S.%f')[:-3] + ' ' + t + '\n')
         time.sleep(0.3); s.read(65536)

@@ -30,7 +30,7 @@ namespace YpVersion
 
     static class Core
     {
-        public const string ToolVersion = "1.0";
+        public const string ToolVersion = "1.8";
         public const uint GrStart = 0x00202000;
         public const int GrSlot = 442368, SigBytes = 904, GrBudget = GrSlot - SigBytes, FsReserve = 16384, LuaDb = 524288;
         static readonly UTF8Encoding Utf8 = new UTF8Encoding(false);
@@ -81,6 +81,14 @@ namespace YpVersion
         }
 
         // Sets the identity of both firmwares. Same rules as tools/ota/Set-FirmwareVersion.ps1: no going back; a new version needs a higher build; the same version keeps its build.
+        // SAM | 2026-11-09 | Backups never go into the tool's own folder (kit may be read-only / shared): --backup-dir, else <project>/logs/firmware_versions, else %LOCALAPPDATA%\YpVersionTool\backup
+        public static string BackupDir = null;
+        static string BackupBase(string root)
+        {
+            if (!string.IsNullOrEmpty(BackupDir)) return Path.GetFullPath(BackupDir);
+            if (Directory.Exists(Path.Combine(root, "logs"))) return Path.Combine(root, "logs", "firmware_versions");
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "YpVersionTool", "backup");
+        }
         public static bool Apply(string header, string lua, string version, int? build, Report rep)
         {
             var nv = Parse(version);
@@ -106,10 +114,15 @@ namespace YpVersion
                 if (nb <= g.Build) { rep.Error("新版本的构建号必须大于当前的 " + g.Build + "（填了 " + nb + "）"); return false; }
             }
             if (nb < 1 || nb > 65535) { rep.Error("构建号要在 1..65535 之间"); return false; }
-            if (cmp == 0 && g.Build == nb && g.Canon == c.Canon && c.Build == nb) { rep.Ok("两边已经是 " + nv + " / build " + nb + "，没有改动"); return true; }
+            if (cmp == 0 && g.Build == nb && g.Canon == c.Canon && c.Build == nb)
+            {
+                rep.Ok("两边已经是 " + nv + " / build " + nb + "，版本没有改动");
+                LegacyRangeNote(lua, rep);
+                return true;
+            }
 
             string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(header)), "..", "..", ".."));
-            string backup = Path.Combine(Directory.Exists(Path.Combine(root, "logs")) ? Path.Combine(root, "logs", "firmware_versions") : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "version_backup"),
+            string backup = Path.Combine(BackupBase(root),
                 "set_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
             Directory.CreateDirectory(backup);
             File.Copy(header, Path.Combine(backup, "gr_version_before.h"), true);
@@ -131,6 +144,7 @@ namespace YpVersion
             l = Regex.Replace(l, @"(?m)^-- SAM \| [^\r\n]* \| (Generated source identity|Source identity set by YpVersionTool);[^\r\n]*\r?\n", "");
             l = Regex.Replace(l, @"(?m)^VERSION\s*=", "-- SAM | " + stamp + " +08:00 | Source identity set by YpVersionTool; rebuild GR and CAT1 before use." + el + "VERSION =");
             File.WriteAllText(lua, l, Utf8);
+            LegacyRangeNote(lua, rep);
 
             string meta = Path.Combine(root, "firmware_version.json");
             if (File.Exists(meta))
@@ -145,8 +159,16 @@ namespace YpVersion
             }
             rep.Good("版本已改为 " + nv + "（" + canon + "），build " + nb + "；改前的文件备份在 " + backup);
             rep.Log("  下一步：在 Keil 里重新编译 GR（F7）；CAT1 用 3 号工具重新生成包。这个工具没有编译、没有烧录。");
-            if (c.Canon != canon) rep.Log("  注意：CAT1 的 OTA_TRIAL_SOURCE / OTA_TRIAL_TARGET 没有改，请核对它们和这次的版本范围一致。");
             return true;
+        }
+
+        // SAM | 2026-11-10 | OTA is ready from the factory: the device upgrades from the version it runs now to any higher signed version, so no OTA range, MD5
+        // or "device version" is written into the CAT1 source any more (nothing for this tool to sync). Old scripts may still carry the three lines; say so.
+        static void LegacyRangeNote(string lua, Report rep)
+        {
+            string l = Read(lua);
+            if (Regex.IsMatch(l, @"(?m)^OTA_TRIAL_(SOURCE|TARGET|MD5)\s*="))
+                rep.Warn("main.lua 里还留着 OTA_TRIAL_SOURCE/TARGET/MD5：新版设备代码已经不用它们（旧固件的设备还在用），可以删掉；这个工具不再修改它们。");
         }
 
         // ---- sizes -----------------------------------------------------------------------------------------------------------------------
@@ -173,15 +195,19 @@ namespace YpVersion
             long left = GrBudget - (long)data.Length;
             if (left < 0) { rep.Error("GR 应用共 " + data.Length + " 字节，超过上限 " + GrBudget + " 字节 " + (-left) + " 字节（槽 " + GrSlot + "，含 " + SigBytes + " 字节签名）。要减小固件后重新编译"); return info; }
             int pct = (int)(data.Length * 100L / GrBudget);
-            string line = "GR 应用 " + data.Length + " 字节，上限 " + GrBudget + "，余 " + left + " 字节（已用 " + pct + "%）" + (signed ? "，输入带签名尾部" : "");
+            // SAM | 2026-11-10 | Say exactly which number is what: the body is what Keil compiles; the signed image (body + signature tail) is what OTA ships and what the red line measures.
+            string line = "GR 应用正文 " + data.Length + " 字节（Keil 编译出来的内容，不含签名），槽上限 " + GrBudget + "，余 " + left + " 字节（已用 " + pct + "%）；" +
+                (signed ? "你选的是【已签名的 .bin】，已去掉 " + SigBytes + " 字节签名尾部再计算" : "你选的是【Keil 编译出来的、还没签名的文件】");
             if (pct >= 95) rep.Warn(line + "：余量很小，下一版很容易超"); else rep.Good(line);
             // SAM | 2026-11-04 +08:00 | OTA red line (budget.json): the signed image must fit the CAT1 file system, far below the slot.
             long signedSize = data.Length + SigBytes;
             string glv = Yp001.Budget.Level(signedSize, Yp001.Budget.GrSignedYellow, Yp001.Budget.GrSignedRed);
-            string gline = "GR 签名镜像 " + signedSize + " 字节，OTA 红线 " + Yp001.Budget.GrSignedRed + "，离红线 " + (Yp001.Budget.GrSignedRed - signedSize);
+            string gline = "GR 签名镜像 " + signedSize + " 字节（OTA 实际传的就是它 = 正文 " + data.Length + " + 签名尾部 " + SigBytes + "；" + (signed ? "已签名" : "签名后才得到，这是预计值") + "），OTA 红线 " + Yp001.Budget.GrSignedRed + "，离红线 " + (Yp001.Budget.GrSignedRed - signedSize);
             if (glv == "red") rep.Error("超过" + gline + "：CAT1 放不下，整机 OTA 会失败，要减小固件");
             else if (glv == "yellow") rep.Warn("接近" + gline + "：加功能前先减小固件");
             else rep.Good(gline);
+            rep.Log("  CAT1 需要的可用空间（门槛）≥ " + GrNeed(signedSize) + " 字节 = GR 签名镜像 " + signedSize + " + 保留 " + Yp001.Budget.Reserve + " + 余量 " + Yp001.Budget.Margin + "。");
+            rep.Log("  设备上实际有多少，要点“读取设备可用空间”才知道；读到的数填到 3 号工具的“CAT1 可用空间”，不要把这个门槛当实际值填。");
             string text = Encoding.GetEncoding(28591).GetString(data);
             var ms = Regex.Matches(text, @"YP001_FW\|GR5526\|(\d{3}\.\d{3}\.\d{3})\|(\d+)\|END");
             if (ms.Count != 1) rep.Error("固件里的版本标记应有且只有一个，实际 " + ms.Count + " 个：不是本项目的固件，或没有用新的版本头文件重新编译");
@@ -261,7 +287,40 @@ namespace YpVersion
             return fs;
         }
 
-        public static string[] Ports() { var p = SerialPort.GetPortNames(); Array.Sort(p, (a, b) => { int x = Num(a), y = Num(b); return x != y ? x.CompareTo(y) : string.CompareOrdinal(a, b); }); return p; }
+        // SAM | 2026-11-10 | The GR command port is never one of the CAT1 USB ports (VID 19D1 running, 17D1 in download mode) or the nRF dongle (1915): leave those out of the list.
+        static HashSet<string> NotGrPorts()
+        {
+            var bad = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                using (var usb = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Enum\USB"))
+                {
+                    if (usb == null) return bad;
+                    foreach (string dev in usb.GetSubKeyNames())
+                    {
+                        string up = dev.ToUpperInvariant();
+                        if (!(up.StartsWith("VID_19D1") || up.StartsWith("VID_17D1") || up.StartsWith("VID_1915"))) continue;
+                        using (var k = usb.OpenSubKey(dev))
+                            foreach (string inst in k.GetSubKeyNames())
+                                using (var dp = k.OpenSubKey(inst + @"\Device Parameters"))
+                                {
+                                    var name = dp == null ? null : dp.GetValue("PortName") as string;
+                                    if (!string.IsNullOrEmpty(name)) bad.Add(name);
+                                }
+                    }
+                }
+            }
+            catch { }
+            return bad;
+        }
+        public static string[] Ports()
+        {
+            var all = SerialPort.GetPortNames(); var bad = NotGrPorts();
+            var p = all.Where(n => !bad.Contains(n)).ToArray();
+            if (p.Length == 0) p = all;       // nothing left after filtering: show everything rather than an empty list
+            Array.Sort(p, (a, b) => { int x = Num(a), y = Num(b); return x != y ? x.CompareTo(y) : string.CompareOrdinal(a, b); });
+            return p;
+        }
         static int Num(string s) { var m = Regex.Match(s, @"\d+"); return m.Success ? int.Parse(m.Value) : 0; }
 
         // SAM | 2026-10-30 18:18 +08:00 | Sends one command to the GR CLI (115200 8N1, CRLF) and collects the answer until `done` is satisfied (then a short grace), or the time is up.
@@ -299,6 +358,28 @@ namespace YpVersion
             var fs = ParseFs(text);
             if (fs == null) rep.Error("15 秒内没有收到 OTA_FS 回答。检查：COM 口选对没有（GR 命令行口）、板子上电、CAT1 已启动（开机后要等一会儿）、波特率 115200");
             return fs;
+        }
+
+        // SAM | 2026-11-10 | The "source version" typed into the 3 号工具 must be the version the device runs now (a wrong one makes the device refuse the package).
+        // Read it from the device instead of remembering it: fw_version on the GR command port (read-only).
+        public class DevVer { public string Canon, Product; public int Build; }
+        public static DevVer ParseDeviceVersion(string text)
+        {
+            var m = Regex.Match(text ?? "", @"\[FW_VERSION\]\s+YP001_FW\|GR5526\|(\d{3}\.\d{3}\.\d{3})\|(\d+)\|END product=([0-9.]+)");
+            return m.Success ? new DevVer { Canon = m.Groups[1].Value, Build = int.Parse(m.Groups[2].Value), Product = m.Groups[3].Value } : null;
+        }
+        public static DevVer ReadDeviceVersion(string port, Report rep, Action pump)
+        {
+            string text = Query(port, "fw_version", t => ParseDeviceVersion(t) != null, 10, rep, pump);
+            if (text == null) return null;
+            var v = ParseDeviceVersion(text);
+            if (v == null) rep.Error("10 秒内没有收到 fw_version 回答。检查：COM 口选对没有（GR 命令行口）、板子上电、波特率 115200");
+            return v;
+        }
+        public static void ShowDeviceVersion(DevVer v, Report rep)
+        {
+            rep.Good("设备 GR 当前版本 " + v.Product + "（" + v.Canon + "），build " + v.Build + "   ← 填到 3 号工具的“源版本”");
+            rep.Log("  升级包只认源版本：源版本必须等于设备现在运行的版本，目标版本（你刚改的版本）必须更高。CAT1 的版本这里读不到，一般和 GR 相同；要核对 CAT1 用 cat_at AT_INFO。");
         }
 
         // Writes device files: cat_at OTA_PRUNE archives the OTA history to the VUART log and deletes the history keys. The OTA state is kept in two copies and
@@ -352,7 +433,7 @@ namespace YpVersion
 
         public MainWindow()
         {
-            Text = "YP001 固件版本与空间工具 v" + Core.ToolVersion; Width = 1060; Height = 760; Font = new Font("Microsoft YaHei UI", 9);
+            Text = "YP001 固件版本与空间工具 v" + Core.ToolVersion; Font = new Font("Microsoft YaHei UI", 9); ClientSize = new Size(1040, 800);
             int y = 8;
             Controls.Add(new Label { Text = "改两个固件的版本（改完你手动编译）；检查两个固件的空间；读设备 CAT1 可用空间", Left = 12, Top = y, Width = 1020, ForeColor = Color.DimGray }); y += 28;
             Section("一、改版本", ref y);
@@ -360,7 +441,7 @@ namespace YpVersion
             Row("CAT1 main.lua", lua, ref y, "file:main.lua|main.lua");
             Row("新版本（如 1.5.3）", ver, ref y, null);
             Row("构建号（留空 = 自动）", build, ref y, null);
-            Hint("留空时：版本升高就在当前构建号上加 1，版本不变就保持原构建号。不允许版本倒退，两个固件一起改成同一个版本和构建号。", ref y);
+            Hint("构建号留空：版本升高就在当前构建号上加 1，版本不变就保持原构建号。不允许版本倒退，两个固件一起改成同一个版本和构建号。\r\nOTA 不需要再填“设备当前版本”：设备从它当前的版本升级到你打包的这个版本，源版本在 3 号工具“生成授权文件”时填。", ref y);
             Buttons(ref y, new[] { "读取当前版本", "修改两个固件的版本" }, new Action[] { ShowCurrent, ApplyVersion });
             Section("二、检查空间", ref y);
             Row("GR 固件（编译出的 .hex / .bin）", grFile, ref y, "file:固件|*.hex;*.bin");
@@ -371,10 +452,11 @@ namespace YpVersion
             port.SetBounds(300, y, 160, 24); Controls.Add(port); FillPorts();
             var refresh = new Button { Text = "刷新", Left = 470, Top = y - 1, Width = 70 }; refresh.Click += (s, e) => FillPorts(); Controls.Add(refresh);
             var read = new Button { Text = "读取设备可用空间", Left = 550, Top = y - 1, Width = 160 }; read.Click += (s, e) => Run(ReadFs); Controls.Add(read);
-            var prune = new Button { Text = "清理 OTA 历史", Left = 720, Top = y - 1, Width = 130 }; prune.Click += (s, e) => Run(PruneFs); Controls.Add(prune); y += 34;
-            Hint("板子上电、CAT1 已启动、COM 口没被别的程序占用。读到的“可用空间”直接填到 3 号工具；选了上面的 GR 固件，会同时判断够不够（需要 = GR 镜像 + 904 + 16384）。不够时点“清理 OTA 历史”：会向设备写文件，先弹窗确认。", ref y);
+            var prune = new Button { Text = "清理 OTA 历史", Left = 720, Top = y - 1, Width = 130 }; prune.Click += (s, e) => Run(PruneFs); Controls.Add(prune);
+            var devver = new Button { Text = "读设备版本", Left = 860, Top = y - 1, Width = 140 }; devver.Click += (s, e) => Run(ReadVer); Controls.Add(devver); y += 34;
+            Hint("板子上电、CAT1 已启动、COM 口没被别的程序占用（列表里已自动去掉 CAT1 和抓包器的口）。读到的“可用空间”直接填到 3 号工具；选了上面的 GR 固件，会同时判断够不够（需要 = GR 镜像 + 904 + 16384）。不够时点“清理 OTA 历史”：会向设备写文件，先弹窗确认。", ref y);
             log.Multiline = true; log.ScrollBars = RichTextBoxScrollBars.Both; log.WordWrap = false; log.ReadOnly = true; log.Font = new Font("Consolas", 9);
-            log.SetBounds(12, y, 1030, 720 - y); log.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right; Controls.Add(log);
+            log.SetBounds(12, y, ClientSize.Width - 24, ClientSize.Height - y - 12); log.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right; Controls.Add(log);
             int wanted = Height; StartPosition = FormStartPosition.CenterScreen;
             Height = Math.Min(wanted, Screen.PrimaryScreen.WorkingArea.Height - 20);
             AutoScroll = true; AutoScrollMinSize = new Size(Width - 40, wanted - 50);
@@ -400,7 +482,7 @@ namespace YpVersion
         void FillPorts()
         {
             string keep = port.Text, last = LastPort(); port.Items.Clear(); port.Items.AddRange(Core.Ports());
-            port.Text = keep.Length > 0 ? keep : port.Items.Contains(last) ? last : (port.Items.Count > 0 ? (port.Items.Contains("COM26") ? "COM26" : (string)port.Items[0]) : "");
+            port.Text = keep.Length > 0 && port.Items.Contains(keep) ? keep : port.Items.Contains(last) ? last : (port.Items.Count > 0 ? (string)port.Items[0] : "");
         }
 
         void Row(string label, TextBox box, ref int y, string pick)
@@ -463,6 +545,15 @@ namespace YpVersion
             else rep.Log(rep.Summary());
         }
 
+        void ReadVer()
+        {
+            var rep = new Report(Put);
+            rep.Log("[读取设备版本] " + port.Text + " 115200，发送 fw_version（只读），最多等 10 秒…");
+            var v = Core.ReadDeviceVersion(port.Text.Trim(), rep, () => Application.DoEvents());
+            if (v != null) { Core.ShowDeviceVersion(v, rep); SaveLastPort(port.Text.Trim()); }
+            rep.Log(rep.Summary());
+        }
+
         void PruneFs()
         {
             var rep = new Report(Put);
@@ -513,9 +604,10 @@ namespace YpVersion
             var rep = new Report((c, t) => Console.WriteLine(t));
             const string usage = "用法：\r\n" +
                 "  YpVersionTool.exe show  --header <yp001_fw_version.h> --lua <main.lua>\r\n" +
-                "  YpVersionTool.exe set   --header <yp001_fw_version.h> --lua <main.lua> --version 1.5.3 [--build 7]\r\n" +
+                "  YpVersionTool.exe set   --header <yp001_fw_version.h> --lua <main.lua> --version 1.5.3 [--build 7] [--backup-dir <目录>]\r\n" +
                 "  YpVersionTool.exe check [--gr <固件.hex|bin>] [--cat1 <CAT1源码目录>] [--header <yp001_fw_version.h>]\r\n" +
                 "  YpVersionTool.exe fs    --port COMx  [--gr <固件.hex|bin>]      读设备 CAT1 可用空间（只读）\r\n" +
+                "  YpVersionTool.exe devver --port COMx   读设备 GR 当前版本（只读，fw_version）：3 号工具的“源版本”填它\r\n" +
                 "  YpVersionTool.exe prune --port COMx --yes [--gr <固件.hex|bin>]  清理 OTA 历史（向设备发两次 cat_at OTA_PRUNE，会写设备文件，必须带 --yes）\r\n" +
                 "  YpVersionTool.exe --ports | --version";
             try
@@ -524,6 +616,8 @@ namespace YpVersion
                 if (cmd == "--version") { Console.WriteLine("YpVersionTool v" + Core.ToolVersion); return 0; }
                 if (cmd == "--ports") { Console.WriteLine(string.Join(" ", Core.Ports())); return 0; }
                 string header = Full(Opt(a, "--header")), lua = Full(Opt(a, "--lua")), ver = Opt(a, "--version"), b = Opt(a, "--build"), gr = Full(Opt(a, "--gr")), cat = Full(Opt(a, "--cat1")), port = Opt(a, "--port"), text = Opt(a, "--parse-text"); bool yes = a.Remove("--yes");
+                if (Opt(a, "--from") != null) rep.Warn("--from 已经不需要了（OTA 不再往源码里写升级范围），已忽略");
+                Core.BackupDir = Opt(a, "--backup-dir");
                 if (a.Count != 0) { Console.WriteLine("不认识的参数：" + string.Join(" ", a) + "\r\n" + usage); return 2; }
                 int bn = 0; if (b != null && !int.TryParse(b, out bn)) { Console.WriteLine("--build 要填数字"); return 2; }
                 if (cmd == "show") { if (header == null && lua == null) { Console.WriteLine(usage); return 2; } Core.Show(header, lua, rep); }
@@ -548,6 +642,12 @@ namespace YpVersion
                     Core.Fs fs = text != null ? Core.ParseFs(text) : Core.ReadDevice(port, rep, null);
                     if (fs == null && text != null) rep.Error("文本里没有 OTA_FS total= used= block=");
                     if (fs != null) Core.ShowFs(fs, img, rep);
+                }
+                else if (cmd == "devver")
+                {
+                    var dv = text != null ? Core.ParseDeviceVersion(text) : Core.ReadDeviceVersion(port, rep, null);
+                    if (dv == null && text != null) rep.Error("文本里没有 [FW_VERSION] YP001_FW|GR5526|…|END product=…");
+                    if (dv != null) Core.ShowDeviceVersion(dv, rep);
                 }
                 else { Console.WriteLine(usage); return 2; }
             }

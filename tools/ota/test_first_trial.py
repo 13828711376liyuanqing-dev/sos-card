@@ -1,10 +1,11 @@
-"""SAM | 2026-10-24 +08:00 | First trial admission is a narrow reviewed policy, never installation acceptance."""
+"""SAM | 2026-10-24 +08:00 | First trial admission is a narrow reviewed policy, never installation acceptance.
+SAM | 2026-11-10 | Production gate: the source is the running version, the target only has to be higher (no written-in range or MD5)."""
 from test_cat_manager import runtime
 
 SETUP = '''
 local mod=require('ota_trial')
 local core='29a3f2dc4eb07badc1093bf8b48f04fa54b40a6d537d1c0814dcfadf53693eec'
-local profile={source='1.0.2',target='1.5.0',core_sha256=core,evidence_sha256=string.rep('a',64)}
+local profile={core_sha256=core,evidence_sha256=string.rep('a',64)}   -- SAM | 2026-11-10 | no version range in the profile any more
 local observed={model='Air780EGH',core='V2052',bits=64,fs_bytes=524288,version='1.0.2'}
 local job={target='CAT1',source='1.0.2',version='1.5.0',hash=string.rep('b',64),size=250544,bundle={manifest_sha256=string.rep('c',64)}}
 local id={package_sha256=job.hash,manifest_sha256=job.bundle.manifest_sha256,core_sha256=core,build_kind='SCRIPT_ONLY_SAME_CORE',user_data_ranges_in_payload=false}
@@ -30,9 +31,27 @@ for k,v in pairs({core_sha256=string.rep('d',64),build_kind='CORE_AND_SCRIPT',us
 end
 id.user_data_ranges_in_payload=nil;assert(not p:install(job,id))
 ''')
-check('later source or target and absent review record reject', '''
-job.version='1.6.0';assert(not p:install(job,id));job.version='1.5.0'
+check('any higher target is accepted; same, lower, malformed or foreign source targets reject', '''
+for _,v in ipairs({'1.6.0','1.0.3','2.3.4','1.5.24'})do job.version=v;assert(p:install(job,id) and p:eligible(job),v)end
+for _,v in ipairs({'1.0.2','1.0.1','0.9.9','1.5','x','1.5.0.1','1.5.1000',1})do job.version=v;assert(not p:install(job,id) and not p:eligible(job),tostring(v))end
+job.version='1.5.0';job.source='1.0.1';assert(not p:install(job,id) and not p:eligible(job));job.source='1.0.2'
+''')
+check('data scope holds before and after the install reboot but not for a foreign running version', '''
+-- before the reboot the device runs the source, after it the target (11-10 board: eligible() here left the install in RECOVERY_HOLD)
+assert(p:scoped(job) and p:eligible(job))
+observed.version=job.version;assert(p:scoped(job) and not p:eligible(job) and not p:install(job,id))
+observed.version='9.9.9';assert(not p:scoped(job))
+observed.version=job.source;job.version=job.source;assert(not p:scoped(job))
+job.version='1.0.1';assert(not p:scoped(job))
+observed.core='V2053';job.version='1.5.0';assert(not p:scoped(job))
+''')
+check('absent review record rejects', '''
 profile.evidence_sha256=nil;assert(not mod.new(profile,function()return observed end):install(job,id))
+''')
+check('a later device keeps working without any profile edit (version follows the running firmware)', '''
+observed.version='1.5.24';job.source='1.5.24';job.version='1.5.26';assert(p:install(job,id))
+observed.version='1.5.26';job.source='1.5.26';job.version='1.5.27';assert(p:install(job,id))
+job.version='1.5.26';assert(not p:install(job,id))
 ''')
 
 # SAM | 2026-10-24 +08:00 | Exercise device option wiring; missing explicit profile must preserve closed production defaults.

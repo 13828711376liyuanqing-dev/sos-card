@@ -4,6 +4,7 @@ import argparse
 import os
 import re
 import subprocess
+from test_scan_stop_shared import function
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -48,6 +49,10 @@ def main():
 #include <string.h>
 #define CHECK(v) do { if (!(v)) { fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #v); exit(1); } } while (0)
 typedef struct { QHsm super; } Cat_Sip;
+typedef struct { int CmdType; char call_out[33]; char call_in[5][20]; } ParaBindMsg_t;
+static ParaBindMsg_t g_bind_msg = { .call_out = "10004" };
+typedef struct { unsigned unused; } Cat_Mqtts;
+#include "cJSON.h"
 static unsigned commands;
 static char last_command[64];
 static void cli_execute_string(char const *command) {
@@ -60,6 +65,7 @@ _Noreturn void Q_onError(char const *module, int id) {
     exit(2);
 }
 '''
+    states = function(source, 'static bool call_out_valid(') + function(source, 'void Cat_Mqtts_parse_bind_msg(') + states
     declarations = '\n'.join(
         'QState ' + name + '(Cat_Sip * const me, ' +
         ('void const * const par);' if name == 'Cat_Sip_initial' else 'QEvt const * const e);')
@@ -70,12 +76,13 @@ static void dispatch(Cat_Sip *me, unsigned sig) {
     QHsm_dispatch_(&me->super.super, &e, 0U);
 }
 static void connected(Cat_Sip *me) {
+    CHECK(yp_business_call_out_set("10004"));
     uint32_t revision = yp_business_status()->revision;
     yp_call_t previous = yp_business_status()->call;
     Cat_Sip_ctor(me);
     QHsm_init_(&me->super.super, NULL, 0U);
     dispatch(me, SIP_DAIL_SIG);
-    CHECK(commands == 1U && strcmp(last_command, "at SIP_DIAL") == 0);
+    CHECK(commands == 1U && strcmp(last_command, "at SIP_DIAL=10004") == 0);
     CHECK(yp_business_status()->call == YP_CALL_DIALING);
     CHECK(yp_business_status()->revision == revision + (previous != YP_CALL_DIALING));
     dispatch(me, CC_SPEECH_START_SIG);
@@ -86,6 +93,16 @@ int main(void) {
     Cat_Sip me;
     yp_business_init();
     CHECK(yp_business_start_alarm());
+    /* SAM | 2026-11-07 +08:00 | GR-first OTA can temporarily run against a receiver without the new snapshot field. */
+    const char *old_hello="BUS_EVT={\"op\":\"hello\",\"imei\":\"123456789012345\",\"alarm_active\":true,\"alarm_id\":1}";
+    CHECK(yp_business_handle_line(old_hello,strlen(old_hello)));
+    CHECK(!yp_business_call_out_known());
+    Cat_Sip_ctor(&me); QHsm_init_(&me.super.super,NULL,0U);
+    dispatch(&me,SIP_DAIL_SIG);
+    CHECK(commands==1 && strcmp(last_command,"at SIP_DIAL")==0);
+    dispatch(&me,SIP_DISCONNECT_SIG);commands=0;
+    CHECK(yp_business_status()->alarm_active);
+
     /* SAM | 2026-11-07 11:04 +08:00 | A remote end must work without a preceding local hangup. */
     connected(&me);
     dispatch(&me, SIP_DISCONNECT_SIG);
@@ -127,6 +144,47 @@ int main(void) {
     dispatch(&me, CAT1_TIMEOUT_SIG);
     CHECK(QHsm_state(&me.super) == Q_STATE_CAST(&Cat_Sip_idle));
     CHECK(commands == 0U);
+    /* SAM | 2026-11-07 +08:00 | Empty/invalid platform numbers cannot become the CAT1 default or a truncated destination. */
+    const char *invalid[] = {"+", "12", "12 34", "123\\r\\nAT", "123456789012345678901234567890123", "10004;reboot"};
+    for (unsigned i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i) {
+        char frame[120];
+        snprintf(frame, sizeof frame, "{\"CallOut\":\"%s\"}", invalid[i]);
+        cJSON *root = cJSON_Parse(frame); CHECK(root != NULL);
+        strcpy(g_bind_msg.call_out, "10004");
+        CHECK(yp_business_call_out_set("10004"));
+        Cat_Mqtts_parse_bind_msg(NULL, root); cJSON_Delete(root);
+        CHECK(strcmp(g_bind_msg.call_out, "10004") == 0);
+    }
+    const char *valid[] = {"10004", "+8613800138000", "1234567890123456789", "12345678901234567890123456789012"};
+    for (unsigned i = 0; i < sizeof(valid) / sizeof(valid[0]); ++i) {
+        char frame[120], expected[64];
+        snprintf(frame, sizeof frame, "{\"CallOut\":\"%s\"}", valid[i]);
+        cJSON *root = cJSON_Parse(frame); CHECK(root != NULL);
+        Cat_Mqtts_parse_bind_msg(NULL, root); cJSON_Delete(root);
+        CHECK(strcmp(g_bind_msg.call_out, valid[i]) == 0);
+        Cat_Sip_ctor(&me); QHsm_init_(&me.super.super, NULL, 0U);
+        commands=0; dispatch(&me, SIP_DAIL_SIG);
+        snprintf(expected, sizeof expected, "at SIP_DIAL=%s", valid[i]);
+        CHECK(commands==1 && strcmp(last_command,expected)==0);
+        dispatch(&me,SIP_DISCONNECT_SIG);
+        CHECK(yp_business_status()->alarm_active);
+    }
+    const char *projection="BUS_EVT={\"op\":\"phone_bind\",\"call_out\":\"+8613800138000\"}";
+    CHECK(yp_business_handle_line(projection,strlen(projection)));
+    CHECK(strcmp(yp_business_call_out(),"+8613800138000")==0);
+    const char *hello="BUS_EVT={\"op\":\"hello\",\"imei\":\"123456789012345\",\"alarm_active\":true,\"alarm_id\":1,\"call_out\":\"10008\"}";
+    CHECK(yp_business_handle_line(hello,strlen(hello)));
+    CHECK(strcmp(yp_business_call_out(),"10008")==0);
+    cJSON *empty = cJSON_Parse("{\"CallOut\":\"\"}"); CHECK(empty != NULL);
+    Cat_Mqtts_parse_bind_msg(NULL, empty); cJSON_Delete(empty);
+    Cat_Sip_ctor(&me); QHsm_init_(&me.super.super, NULL, 0U);
+    commands=0; dispatch(&me,SIP_DAIL_SIG);
+    CHECK(commands==0 && QHsm_state(&me.super)==Q_STATE_CAST(&Cat_Sip_idle));
+    CHECK(yp_business_handle_line(old_hello,strlen(old_hello)));
+    CHECK(yp_business_call_out_known() && yp_business_call_out()[0]==0);
+    CHECK(yp_business_status()->alarm_active);
+    strcpy(g_bind_msg.call_out,"10004");
+
     /* Actual CAT1 BUS_EVT delivery owns incoming/connected/ended states. */
     char const *states[] = {"incoming", "connected", "ended", "failed"};
     yp_call_t const values[] = {YP_CALL_INCOMING, YP_CALL_CONNECTED, YP_CALL_ENDED, YP_CALL_FAILED};
@@ -155,7 +213,7 @@ int main(void) {
     for mode in ('sip', 'cc'):
         exe = out / (mode + '_states.exe')
         command = [str(gcc), '-std=c11', '-Wall', '-Wextra', '-Werror',
-                   '-Wno-unused-parameter', '-Wno-error=unused-variable', '-DYP_BUSINESS_HOST_TEST',
+                   '-Wno-unused-parameter', '-Wno-error=unused-variable', '-Wno-error=unused-but-set-variable', '-DYP_BUSINESS_HOST_TEST',
                    '-I' + str(out), '-I' + str(QPC / 'include')]
         command += ['-I' + str(ROOT / p) for p in ('tools/name_push', 'tools/name_push/stubs',
                     'ble_app_uart_c/Src/user/business', 'ble_app_uart_c/Src/external/cJSON-1.7.19')]

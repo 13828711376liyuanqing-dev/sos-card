@@ -40,7 +40,8 @@ local function trim(map,keep)
     end)
     for i=1,#keys do if count<=HISTORY_MAX then break end;map[keys[i]]=nil;count=count-1 end
 end
-local function trial_job(j)return type(j)=='table' and type(j.bundle)=='table' and _G.OTA_TRIAL_MD5~=nil and j.bundle.md5==_G.OTA_TRIAL_MD5 and j.version==_G.OTA_TRIAL_TARGET end
+-- SAM | 2026-11-10 +08:00 | Every job gets its own one-use ticket (a new job replaces the previous ticket at GRANT); no frozen MD5 any more.
+local function trial_job(j)return type(j)=='table' and type(j.bundle)=='table' and hex(j.bundle.md5,32) end
 local function io_get(s)local r=s.io2;if type(r)=='table' and s.job and r.id==s.job.id then return r.v end end
 local function io_n(s)local r=s.io2;return type(r)=='table' and s.job and r.id==s.job.id and r.n or 0 end
 local function io_set(n,v,rearm)if not (type(n.io2)=='table' and n.io2.id==n.job.id) then n.io2={id=n.job.id,n=0} end;n.io2.v=v;if rearm then n.io2.n=n.io2.n+1 end end

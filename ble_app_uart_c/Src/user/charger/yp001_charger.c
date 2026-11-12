@@ -1,4 +1,4 @@
-#include "yp001_charger.h"
+﻿#include "yp001_charger.h"
 
 #include "app_i2c.h"
 #include "app_io.h"
@@ -12,12 +12,21 @@
 /* SAM | 2026-10-13 14:03 +08:00 | Use tested ship controller and existing
  * business/OTA gates because factory cutoff must not interrupt live work. */
 #include "yp001_shipping.h"
+#include "../yp001_battery.h"
 #include "../business/yp001_business.h"
 #include "../ota/yp001_ota_port.h"
 static yp_ship_t s_ship;
+/* SAM | 2026-11-08 20:30 +08:00 | The automatic job is RAM-only and never resumes after reboot. */
+static yp_ship_auto_t s_ship_auto;
+static uint32_t s_ship_auto_poll_ms;
+static bool s_ship_auto_internal;
 static uint32_t s_ship_poll_ms;
 static bool ship_business_guard(void);
 static volatile bool s_ship_key_seen;
+
+
+/* SAM | 2026-11-12 22:40 +08:00 | Match the measured board's 100mA profile because the sleep comparison must keep charging load consistent. */
+#define FAST_CHARGE_CURRENT_VALUE 100U
 
 /* ETA69631 Rev 1.9, pp. 23-30. These addresses differ from the older
  * eta69631.c register definitions in this repository. */
@@ -201,6 +210,8 @@ bool yp001_charger_read_status(yp001_charger_status_t *status)
         !read_reg(REG_PRE_TERM, &pre_term) || !read_reg(REG_TIMER, &timer) ||
         !read_reg(REG_FINE, &fine)) return false;
     status->id = id;
+    /* SAM | 2026-11-12 22:40 +08:00 | Keep the full input byte because 0x04 and 0x24 both decode to 500mA. */
+    status->input_raw = input;
     status->vbus_type = (state >> 5U) & 0x07U;
     status->charge_state = (state >> 3U) & 0x03U;
     status->power_good = (state & 0x04U) != 0U;
@@ -227,6 +238,20 @@ bool yp001_charger_read_status(yp001_charger_status_t *status)
     s_display_status = *status;
     s_display_ms = s_test_clock_ms;
     s_display_valid = true;
+    return true;
+}
+
+/* SAM | 2026-11-12 22:40 +08:00 | Capture pre-configuration power state because a reset can hide charging re-enable during sleep. */
+bool yp001_charger_power_snapshot(const char *stage)
+{
+    uint8_t input, power, timer;
+    if (!yp001_charger_probe() || !read_reg(REG_INPUT, &input) ||
+        !read_reg(REG_POWER, &power) || !read_reg(REG_TIMER, &timer)) {
+        cli_printf("[CHG RAW] stage=%s read_failed\r\n", stage);
+        return false;
+    }
+    cli_printf("[CHG RAW] stage=%s REG00=%02X REG01=%02X REG05=%02X\r\n",
+               stage, input, power, timer);
     return true;
 }
 
@@ -302,7 +327,7 @@ bool yp001_charger_apply_profile(const yp001_charger_profile_t *profile)
  * A successful return proves register readback only, not battery safety. */
 bool yp001_charger_prepare_disabled(void)
 {
-    const yp001_charger_profile_t profile = { 500U, 100U, 4200U };
+    const yp001_charger_profile_t profile = { 500U, FAST_CHARGE_CURRENT_VALUE, 4200U };
     yp001_charger_status_t status;
     /* SAM | 2026-10-13 14:03 +08:00 | Preserve armed BATFET and timing. */
     if (yp001_charger_ship_locked()) return false;
@@ -324,7 +349,7 @@ bool yp001_charger_prepare_disabled(void)
     if ((status.power_raw & 0x30U) != 0U ||
         (status.timer_raw & 0xB8U) != 0x88U ||
         status.pre_term_raw != 0U || (status.fine_raw & 0x80U) != 0U ||
-        status.input_limit_ma != 500U || status.charge_limit_ma != 100U ||
+        status.input_limit_ma != 500U || status.charge_limit_ma != FAST_CHARGE_CURRENT_VALUE ||
         status.charge_voltage_mv != 4200U) {
         /* SAM | 2026-10-10 09:04 +08:00 | Capture mismatch before disabling. */
         remember_stop("PREPARE_PROFILE", &status);
@@ -334,8 +359,8 @@ bool yp001_charger_prepare_disabled(void)
     /* SAM | 2026-10-09 21:25 +08:00 | Poll may start after stable input
      * because the user authorized automatic 100mA/4.20V charging. */
     s_auto_ready = true;
-    cli_printf("[CHG] DISABLED PROFILE VERIFIED; auto 100mA/4200mV, hold=%u\r\n",
-               (unsigned)s_auto_blocked);
+    cli_printf("[CHG] DISABLED PROFILE VERIFIED; auto %d mA/4200mV, hold=%u\r\n",
+               FAST_CHARGE_CURRENT_VALUE,(unsigned)s_auto_blocked);
     return true;
 failed:
     /* SAM | 2026-10-10 09:04 +08:00 | Invalid reads must not become snapshots. */
@@ -379,7 +404,7 @@ static bool test_status_ok(const yp001_charger_status_t *status, bool enabled)
            (status->power_raw & 0x30U) == (enabled ? CHARGE_ENABLE : 0U) &&
            (status->timer_raw & 0xB8U) == 0x88U &&
            status->pre_term_raw == 0U && (status->fine_raw & 0x80U) == 0U &&
-           status->input_limit_ma == 500U && status->charge_limit_ma == 100U &&
+           status->input_limit_ma == 500U && status->charge_limit_ma == FAST_CHARGE_CURRENT_VALUE &&
            status->charge_voltage_mv == 4200U;
 }
 
@@ -396,6 +421,10 @@ void yp001_charger_tick_ms(uint32_t elapsed_ms)
 static bool ship_business_guard(void)
 {
     const yp_business_status_t *b = yp_business_status();
+    /* SAM | 2026-11-08 +08:00 | Factory pre-shipment configuration is forced: the single start owns the sequence, so business, key, link and
+     * OTA-layout conditions do not apply. Only a live OTA transaction (never present before shipment) and the CAT1 rail the job itself forced off remain. */
+    if (s_ship_auto.phase != YP_SHIP_AUTO_IDLE)
+        return yp001_ota_power_change_allowed() && (GPIO0->DATAOUT & YP001_CAT1_POWER_PIN) == 0U;
     /* SAM | 2026-11-06 +08:00 | Ship cutoff cannot override the independent factory power hold. */
     return !yp001_cat1_factory_hold_active() && !s_ship_key_seen && !yp001_ota_port_provisioned() && yp001_ota_power_change_allowed() &&
         !b->alarm_active && !b->searching && !b->transport_ready &&
@@ -406,6 +435,72 @@ static bool ship_business_guard(void)
         (GPIO0->DATAOUT & YP001_CAT1_POWER_PIN) == 0U &&
         app_io_read_pin(YP001_KEY1_TYPE, YP001_KEY1_PIN) != APP_IO_PIN_RESET &&
         app_io_read_pin(YP001_KEY2_TYPE, YP001_KEY2_PIN) != APP_IO_PIN_RESET;
+}
+
+/* SAM | 2026-11-08 20:30 +08:00 | Preserve the existing offline/unprovisioned safety boundary until F-010 shutdown is implemented. */
+static const char *ship_auto_guard(void)
+{
+    /* SAM | 2026-11-08 +08:00 | Forced factory shipment: the only refusal is a live OTA transaction (power would corrupt the install). */
+    if (!yp001_ota_power_change_allowed()) return "OTA_guard";
+    /* A running job has already forced CAT1 off; if the rail is still requested the force failed and nothing may be cut. */
+    if (s_ship_auto.phase != YP_SHIP_AUTO_IDLE && (GPIO0->DATAOUT & YP001_CAT1_POWER_PIN) != 0U) return "CAT1_power_off_failed";
+    return NULL;
+}
+/* SAM | 2026-11-08 +08:00 | Force the preconditions instead of refusing: release the factory power hold, drop the CAT1 rail request, clear the key latch.
+ * Idempotent; called at job start and every poll tick so a later rail request (scan scheduler, other code) cannot defeat it. */
+static void ship_force_cat1_off(void)
+{
+    if (!yp001_ota_power_change_allowed()) return;
+    if (yp001_cat1_factory_hold_active()) {
+        char command[]="cat1_power",release[]="hold_off";char *args[]={command,release};
+        (void)cat1_debug_power(2,args);
+    }
+    if ((GPIO0->DATAOUT & YP001_CAT1_POWER_PIN)!=0U) {
+        char command[]="cat1_power",off[]="off";char *args[]={command,off};
+        (void)cat1_debug_power(2,args);
+    }
+    s_ship_key_seen=false;
+}
+static int ship_auto_usb(void)
+{
+    uint8_t status,dpm;
+    if (!yp001_charger_probe() || !read_reg(REG_STATUS,&status) || !read_reg(REG_DPM_STATUS,&dpm)) return -1;
+    return (status & 0xFCU) || (dpm & 0x80U) ? 1 : 0;
+}
+static bool ship_auto_prepare(void)
+{
+    uint16_t mv;
+    /* A live reading after USB removal is required; a USB-powered sample cannot qualify this path. */
+    ship_force_cat1_off();
+    if (ship_auto_guard() || ship_auto_usb()!=0 || yp001_battery_read(&mv)!=YP001_BATTERY_OK) return false;
+    s_ship_auto_internal=true;
+    bool ok=yp001_charger_ship_prepare();
+    s_ship_auto_internal=false;
+    return ok;
+}
+static bool ship_auto_confirm(uint32_t token)
+{
+    s_ship_auto_internal=true;
+    bool ok=yp001_charger_ship_confirm(token);
+    s_ship_auto_internal=false;
+    return ok;
+}
+static void ship_auto_cancel(void) { (void)yp001_charger_ship_cancel(); }
+static const yp_ship_auto_port_t ship_auto_port={
+    ship_auto_guard,ship_auto_usb,ship_auto_prepare,ship_auto_confirm,ship_auto_cancel
+};
+bool yp001_charger_ship_start(void)
+{
+    if (s_ship_auto.phase==YP_SHIP_AUTO_IDLE && yp_ship_locked(&s_ship)) return false;
+    bool ok=yp_ship_auto_start(&s_ship_auto,s_test_clock_ms,&ship_auto_port);
+    if (ok && yp_ship_auto_active(&s_ship_auto)) ship_force_cat1_off();   /* SAM | 2026-11-08 +08:00 | forced, not refused */
+    yp001_charger_ship_status();
+    return ok;
+}
+void yp001_charger_ship_auto_snapshot(uint8_t *phase,const char **reason)
+{
+    *phase=(uint8_t)s_ship_auto.phase;
+    *reason=s_ship_auto.reason?s_ship_auto.reason:"idle";
 }
 
 bool yp001_charger_ship_locked(void) { return yp_ship_locked(&s_ship); }
@@ -441,6 +536,11 @@ static bool ship_write_field(uint8_t reg, uint8_t mask, uint8_t bits)
 
 void yp001_charger_ship_status(void)
 {
+    if (s_ship_auto.phase!=YP_SHIP_AUTO_IDLE) {
+        static const char *const jobs[]={"IDLE","CHECKING","SENT","FAILED","UNKNOWN","WAIT_USB_REMOVED"};
+        cli_printf("[SHIP] auto=%s reason=%s attempted=%u\r\n",jobs[s_ship_auto.phase],
+            s_ship_auto.reason?s_ship_auto.reason:"idle",(unsigned)s_ship.disconnect_attempted);
+    }
     static const char *const names[] = { "IDLE", "CHECKING", "READY", "SENT", "FAILED" };
     cli_printf("[SHIP] state=%s token=%lu attempted=%u reason=%s\r\n",
         names[s_ship.phase], (unsigned long)s_ship.token,
@@ -453,7 +553,7 @@ void yp001_charger_ship_status(void)
             read_reg(REG_STATUS, &state) && read_reg(REG_DPM_STATUS, &dpm))
             cli_printf("[SHIP] REG07=%02X REG0D=%02X REG08=%02X REG0A=%02X\r\n", ship, fine, state, dpm);
     }
-    if (s_ship.phase == YP_SHIP_READY)
+    if (s_ship.phase == YP_SHIP_READY && s_ship_auto.phase==YP_SHIP_AUTO_IDLE)
         cli_printf("[SHIP] confirm within 30s: charger ship confirm %lu\r\n", (unsigned long)s_ship.token);
     if (s_ship.disconnect_attempted)
         cli_printf("[SHIP] no cancel/retry; measure SYS and battery current; insert 5V to restore\r\n");
@@ -461,6 +561,8 @@ void yp001_charger_ship_status(void)
 
 bool yp001_charger_ship_prepare(void)
 {
+    /* SAM | 2026-11-08 20:30 +08:00 | A running automatic job owns its internal token. */
+    if (s_ship_auto.phase!=YP_SHIP_AUTO_IDLE && !s_ship_auto_internal) return false;
     /* SAM | 2026-10-13 14:15 +08:00 | Reject qualification read-only before
      * stopping charge; a refused ship command must not change charge hold. */
     if (!yp001_charger_ship_locked()) s_ship_key_seen = false;
@@ -484,6 +586,8 @@ bool yp001_charger_ship_prepare(void)
 
 bool yp001_charger_ship_confirm(uint32_t token)
 {
+    /* SAM | 2026-11-08 20:30 +08:00 | Legacy confirmation cannot race the automatic coordinator. */
+    if (s_ship_auto.phase!=YP_SHIP_AUTO_IDLE && !s_ship_auto_internal) return false;
     bool ok = yp_ship_confirm(&s_ship, token, s_test_clock_ms,
                              read_reg, ship_write_field, ship_business_guard);
     if (ok) cli_printf("[SHIP] BATFET_DIS readback=1; delay ~12s; accepted, physical cutoff UNVERIFIED\r\n");
@@ -496,6 +600,10 @@ bool yp001_charger_ship_cancel(void)
 {
     bool ok = yp_ship_cancel(&s_ship);
     if (ok) {
+        if (yp_ship_auto_active(&s_ship_auto)) {
+            s_ship_auto.phase=YP_SHIP_AUTO_FAILED;
+            s_ship_auto.reason="cancelled";
+        }
         /* Retain a charge hold and restart ordinary input qualification. */
         s_auto_blocked = true;
         s_input_absent = s_input_stable = false;
@@ -590,7 +698,7 @@ bool yp001_charger_test_start(void)
     s_test_log_ms = s_test_clock_ms;
     /* SAM | 2026-10-09 21:25 +08:00 | Remove bench deadline because IC
      * termination and safety timer now bound the requested charge cycle. */
-    cli_printf("[CHG] CHARGE STARTED: 100mA/4200mV; IC termination/safety timer; keep attended\r\n");
+    cli_printf("[CHG] CHARGE STARTED: %d mA/4200mV; IC termination/safety timer; keep attended\r\n",FAST_CHARGE_CURRENT_VALUE);
     return true;
 }
 
@@ -601,6 +709,14 @@ void yp001_charger_poll(void)
 {
     uint32_t now = s_test_clock_ms;
     yp001_charger_status_t status;
+    /* SAM | 2026-11-08 20:30 +08:00 | Waiting does not acquire the ship lock or suspend OTA/business dispatch. */
+    if (yp_ship_auto_active(&s_ship_auto) && (uint32_t)(now-s_ship_auto_poll_ms)>=250U) {
+        s_ship_auto_poll_ms=now;
+        if (!s_ship.disconnect_attempted) ship_force_cat1_off();
+        yp_ship_auto_phase_t before=s_ship_auto.phase;
+        yp_ship_auto_poll(&s_ship_auto,&s_ship,now,&ship_auto_port);
+        if (before!=s_ship_auto.phase) yp001_charger_ship_status();
+    }
     /* SAM | 2026-10-13 14:03 +08:00 | Sample only qualification; after an
      * attempted cutoff never retry charger writes or infer SYS from I2C. */
     if (yp001_charger_ship_locked()) {
@@ -698,9 +814,11 @@ void yp001_charger_poll(void)
     }
     if ((uint32_t)(now - s_test_log_ms) >= 5000U) {
         s_test_log_ms = now;
-        cli_printf("[CHG] CHARGE elapsed=%lus CHG=%u FAULT=%02X (setpoints 100mA/4200mV)\r\n",
+        /* SAM | 2026-11-12 22:40 +08:00 | Print register readback because the prior fixed 100mA text could conceal a changed profile. */
+        cli_printf("[CHG] CHARGE elapsed=%lus CHG=%u FAULT=%02X (setpoints %umA/%umV)\r\n",
                    (unsigned long)((now - s_test_start_ms) / 1000U),
-                   status.charge_state, status.fault);
+                   status.charge_state, status.fault,
+                   status.charge_limit_ma, status.charge_voltage_mv);
     }
 }
 

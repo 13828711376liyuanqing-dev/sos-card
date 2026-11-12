@@ -122,6 +122,8 @@ static volatile bool s_keys_ready;
 
 /* SAM | 2026-10-16 10:00 +08:00 | Bound serial sleep tests because SDK sleep requests need runtime evidence. */
 static volatile bool s_sleep_test;
+/* SAM | 2026-11-12 22:40 +08:00 | Select the explicit PSRAM current comparison without changing existing sleep commands. */
+static bool s_sleep_psram_half;
 /* SAM | 2026-10-16 17:00 +08:00 | Latch physical edges and use an AON-backed deadline while SysTick is stopped. */
 #include "app_timer.h"
 #include "gr55xx_hal_pwr_mgmt.h"
@@ -231,11 +233,15 @@ static void sleep_test_stop(const char *reason) {
     cli_printf("[WAKE] MCU AWAKE source=%s; resumed, not rebooted\r\n", reason);
 }
 static int cmd_sleep_test(int argc, char *argv[]) {
+    /* SAM | 2026-11-12 +08:00 | "enter force" = factory current test (user decision): low polarity, 300 s rescue, releases the factory CAT1 hold and ignores alarm/search/call; OTA power lock, ship lock and held keys still abort. */
+    bool force = argc == 3 && !strcmp(argv[1], "enter") && !strcmp(argv[2], "force");
+    /* SAM | 2026-11-12 22:40 +08:00 | The PSRAM comparison keeps normal business/OTA gates and uses the established 300s window. */
+    bool psram = argc == 3 && !strcmp(argv[1], "enter") && !strcmp(argv[2], "psram");
     /* SAM | 2026-10-18 21:40 +08:00 | Accept an explicit diagnostic polarity and keep legacy enter low-active because voltage timing has not established the final product polarity. */
     /* SAM | 2026-10-19 18:00 +08:00 | Long is explicit and keeps polarity mandatory; preserve all old command forms and the default rescue. */
-    if (argc != 2 && !((argc == 3 || (argc == 4 && !strcmp(argv[3], "long"))) && !strcmp(argv[1], "enter") &&
+    if (!force && !psram && argc != 2 && !((argc == 3 || (argc == 4 && !strcmp(argv[3], "long"))) && !strcmp(argv[1], "enter") &&
         (!strcmp(argv[2], "high") || !strcmp(argv[2], "low") || !strcmp(argv[2], "keys") || !strcmp(argv[2], "motion")))) {
-    cli_printf("sleep_test enter [low|high|keys|motion [long]]|status|exit (wake reboots; requested rescue=60s, long=300s)\r\n");
+    cli_printf("sleep_test enter [low|high|keys|motion [long]]|enter psram|status|exit (wake reboots; rescue=60s, long/psram=300s)\r\n");
         return -1;
     }
     if (!strcmp(argv[1], "status")) {
@@ -247,11 +253,20 @@ static int cmd_sleep_test(int argc, char *argv[]) {
     if (!strcmp(argv[1], "exit")) { sleep_test_stop("cli"); return 0; }
     if (strcmp(argv[1], "enter")) return -1;
     const yp_business_status_t *st = yp_business_status();
-    if (s_sleep_test || yp001_charger_ship_locked() || yp001_cat1_factory_hold_active() || !yp001_ota_power_change_allowed() ||
+    if (force && yp001_cat1_factory_hold_active()) {
+        char name[] = "cat1_power", off[] = "hold_off"; char *args[] = {name, off};
+        (void)cat1_debug_power(2, args);
+    }
+    if (force && (s_sleep_test || yp001_charger_ship_locked() || yp001_cat1_factory_hold_active() || !yp001_ota_power_change_allowed() ||
+        app_io_read_pin(YP001_KEY1_TYPE, YP001_KEY1_PIN) == APP_IO_PIN_RESET ||
+        app_io_read_pin(YP001_KEY2_TYPE, YP001_KEY2_PIN) == APP_IO_PIN_RESET)) {
+        cli_printf("[SLEEP TEST] force refused: OTA/ship lock/key held\r\n"); return -1;
+    }
+    if (!force && (s_sleep_test || yp001_charger_ship_locked() || yp001_cat1_factory_hold_active() || !yp001_ota_power_change_allowed() ||
         st->alarm_active || st->searching || st->call == YP_CALL_DIALING ||
         st->call == YP_CALL_INCOMING || st->call == YP_CALL_CONNECTED ||
         app_io_read_pin(YP001_KEY1_TYPE, YP001_KEY1_PIN) == APP_IO_PIN_RESET ||
-        app_io_read_pin(YP001_KEY2_TYPE, YP001_KEY2_PIN) == APP_IO_PIN_RESET) {
+        app_io_read_pin(YP001_KEY2_TYPE, YP001_KEY2_PIN) == APP_IO_PIN_RESET)) {
         cli_printf("[SLEEP TEST] refused: busy/locked/key held\r\n"); return -1;
     }
     /* SAM | 2026-10-17 22:31 +08:00 | Initialize GPIO7 as output before driving it high because app_io_init resets the output latch and the earlier write-before-init test read low. */
@@ -272,7 +287,8 @@ static int cmd_sleep_test(int argc, char *argv[]) {
         return -1;
     }
     /* SAM | 2026-10-18 21:40 +08:00 | Configure the selected output polarity before registering its matching MCU wake edge. */
-    s_sleep_rescue_ms = argc == 4 ? 300000U : 60000U;
+    s_sleep_rescue_ms = (argc == 4 || force || psram) ? 300000U : 60000U;
+    s_sleep_psram_half = psram;
     /* SAM | 2026-10-19 18:20 +08:00 | Keys-only keeps sensor power/configuration but removes its external wake enable during the test. */
     s_sleep_keys_only = argc >= 3 && !strcmp(argv[2], "keys");
     /* SAM | 2026-10-19 19:10 +08:00 | Motion-only retains timed rescue and key-held entry protection, but only AON7 can wake it. */
@@ -296,9 +312,10 @@ static int cmd_sleep_test(int argc, char *argv[]) {
     pwr_mgmt_register_trace_func(sleep_test_trace, NULL);
     ll_pwr_set_wakeup_condition(PWR_WKUP_COND_EXT);
     /* SAM | 2026-10-16 17:00 +08:00 | Pause guarded charging before suspending its software safety sampler. */
-    if (!yp001_charger_test_stop()) {
+    /* SAM | 2026-11-12 22:40 +08:00 | Record live power bytes after the verified stop because decoded limits conceal REG00 bit5. */
+    if (!yp001_charger_test_stop() || !yp001_charger_power_snapshot("pre_sleep")) {
         (void)gsensor_sleep_motion_restore();
-        cli_printf("[SLEEP TEST] refused: cannot stop charging safely\r\n"); return -1;
+        cli_printf("[SLEEP TEST] refused: charge stop/power readback failed\r\n"); return -1;
     }
     /* SAM | 2026-10-17 17:06 +08:00 | State the reset-on-wake behavior because ultra sleep cannot resume the old RAM execution context. */
     cli_printf("[SLEEP TEST ultra] armed; charging stopped; keys/GS_INT wake or requested %lus rescue; wake reboots\r\n",
@@ -412,6 +429,14 @@ static void sleep_test_prepare(void) {
         (AON_PWR->DPAD_LE_CTRL & AON_PWR_DPAD_LE_CTRL_SLEEP) != 0U) s_sleep_ready = false;
     /* SAM | 2026-10-19 19:10 +08:00 | Recheck every mode immediately before entry so later peripheral setup cannot silently expand wake sources. */
     if ((AON_IO->EXT_WAKEUP_CTRL0 & 0xFFU) != s_sleep_expected_mask) s_sleep_ready = false;
+    /* SAM | 2026-11-12 22:40 +08:00 | Print the final decision after UART abort; synchronous TX must finish before the last busy check. */
+    cli_printf("[SLEEP FINAL] ready=%u busy=%08lX extra=%08lX source=%02lX timeout=%u psram_half=%u\r\n",
+        s_sleep_ready, (unsigned long)s_sleep_busy_after_abort,
+        (unsigned long)s_sleep_extra_after_abort, (unsigned long)s_sleep_source,
+        s_sleep_timeout, s_sleep_psram_half);
+    s_sleep_busy_after_abort = g_devices_state;
+    s_sleep_extra_after_abort = g_extra_devices_state;
+    if (s_sleep_busy_after_abort || s_sleep_extra_after_abort) s_sleep_ready = false;
     s_sleep_prepared = true;
 }
 static void sleep_test_finish(void) {
@@ -716,7 +741,7 @@ void BSP_init(void) {
     /* SAM | 2026-10-13 08:36 +08:00 | Initialize before first UI render; never initialize from sample labels. */
     yp_psram_mem_init();
     
-    //yp_scan_sched_init();
+    yp_scan_sched_init();
     yp001_ota_init();
 
     // SystemCoreClockUpdate();
@@ -730,6 +755,8 @@ void BSP_init(void) {
     APP_LOG_INFO("BOOT: YP001 GR5526; CAT1 power only; UART manual; DEPG0150 GPIO24/25");
     app_log_flush();
     gpio_init();//v1.1LED有变�?
+    /* SAM | 2026-11-12 22:40 +08:00 | Read IC power state before prepare overwrites it so sleep/reset charging changes remain visible. */
+    (void)yp001_charger_power_snapshot("boot");
     /* SAM | 2026-10-09 12:20 +08:00 | Configure charger with CHG_CONFIG=0
      * after 1.8V GPIO power setup, before LCD delays; NTC is not validated.
      * Keep battery disconnected: software cannot inhibit power-on defaults. */
@@ -908,7 +935,7 @@ void QF_onContextSw(QActive *prev, QActive *next) {
 }
 #endif // QF_ON_CONTEXT_SW
 
-#define YP_MOTION_STILL_MS (5U * 60U * 1000U)   /* 设备默认: no motion >= 5 min => still */
+#define YP_MOTION_STILL_MS (10U * 60U * 1000U)   /* 设备默认: no motion >= 5 min => still */
 /* 静止判定阈值：优先服务器下发的 RestTime(分钟)，否则设备默�?5 分钟 */
 static uint32_t yp_motion_still_ms(void)
 {
@@ -916,7 +943,7 @@ static uint32_t yp_motion_still_ms(void)
                ? (uint32_t)g_config.RestTime * 60000U : YP_MOTION_STILL_MS;
 }
 static bool s_motion_known;
-static bool s_motion_moving;
+static bool s_motion_moving = true;
 static uint32_t s_motion_event_ms;
 
 void yp_motion_poll(uint32_t now_ms)
@@ -992,9 +1019,18 @@ void QV_onIdle(void) {
             s_sleep_ultra_wdt_result = app_aon_wdt_deinit();
             /* SAM | 2026-10-17 17:18 +08:00 | 0x00E9 means WDT was never initialized on this board, so no WDT must be stopped before the timed SDK sleep. */
             if (s_sleep_ultra_wdt_result == APP_DRV_SUCCESS || s_sleep_ultra_wdt_result == APP_DRV_ERR_NOT_INIT) {
-                /* SAM | 2026-10-19 18:00 +08:00 | Match ultra rescue to the foreground diagnostic selection. */
-                pwr_mgmt_ultra_sleep(s_sleep_rescue_ms);
-                s_sleep_ultra_returned = true;
+                /* SAM | 2026-11-12 22:40 +08:00 | Recheck OTA ownership before data-retaining PSRAM suspend; restore immediately on any SDK return. */
+                s_sleep_ready = yp001_ota_power_change_allowed();
+                bool psram_suspended = false;
+                if (s_sleep_ready && s_sleep_psram_half) {
+                    s_sleep_ready = yp_psram_sleep_test_suspend();
+                    psram_suspended = s_sleep_ready;
+                }
+                if (s_sleep_ready) {
+                    pwr_mgmt_ultra_sleep(s_sleep_rescue_ms);
+                    s_sleep_ultra_returned = true;
+                }
+                if (psram_suspended) yp_psram_sleep_test_resume();
                 if (s_sleep_ultra_wdt_result == APP_DRV_SUCCESS) (void)app_aon_wdt_init(&s_params, app_aon_wdt_evt_handler);
             }
             /* SAM | 2026-10-17 17:11 +08:00 | Restore the live diagnostic if ultra sleep unexpectedly returns or WDT deinit fails. */

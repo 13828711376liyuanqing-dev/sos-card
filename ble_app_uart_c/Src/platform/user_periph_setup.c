@@ -878,9 +878,13 @@ void yp001_ota_uart_reply(const char *line, size_t length)
 }
 
 /* SAM | 2026-10-28 19:00 +08:00 | Bench builds restart a silent CAT1 once per GR boot while a GR OTA owner is active, because the install reset (and any GR reset) drops CAT1 and the protected-install gate refuses the manual key. Rail on + one non-blocking 1600ms PWRKEY; skipped if CAT1 was heard, rail isolated or the owner is not a GR transaction. Production builds keep manual PWRKEY. */
+/* SAM | 2026-11-11 +08:00 | Production fix (user decision): bench switches YP001_OTA_USB_BENCH_TEST/EPAPER_UI_FACTORY_TEST are 0 in the Keil project, but this OTA-only CAT1 restart stays in every build: after the GR install reset nothing else pulses PWRKEY, so a field OTA would wait in TRIAL without CAT1. Same guards as before (GR OTA owner active, CAT1 silent, rail not isolated, once per boot). */
+#ifndef YP001_CAT1_OTA_AUTOSTART
+#define YP001_CAT1_OTA_AUTOSTART 1
+#endif
 void yp001_cat1_ota_autostart_poll(uint32_t now_ms)
 {
-#if YP001_OTA_USB_BENCH_TEST
+#if YP001_CAT1_OTA_AUTOSTART
     static yp001_cat1_autostart_t autostart;
     uint32_t peer[12];
     yp_business_peer_evidence(peer);
@@ -1267,7 +1271,7 @@ static void log_store_init(void)
 
 void app_periph_init(void)
 {
-    SYS_SET_BD_ADDR(s_bd_addr);
+    //SYS_SET_BD_ADDR(s_bd_addr);
     if (!s_debug_uart_ready)
     {
         uart_init();

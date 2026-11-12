@@ -1,4 +1,4 @@
-"""SAM | 2026-10-29 11:55 +08:00 | Token-saving local OTA watcher (user request): polls COM26 itself and prints only events, so the
+"""SAM | 2026-10-29 11:55 +08:00 | Token-saving local OTA watcher (user request): polls the GR port itself and prints only events, so the
 assistant reads one short summary instead of re-reading logs. Read-only: sends only `cat_at FOTA_STATUS` and `fw_version`.
 Events: phase/reason/step change, progress crossing each 25 %, GR version change, CAT1 no answer, stall, finish.
 Exit codes: 0 finished (CAT1 back to IDLE after a task), 2 stopped (RECOVERY_HOLD / limit / error reason), 3 stalled,
@@ -23,13 +23,15 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--log', required=True)
     ap.add_argument('--state')
-    ap.add_argument('--port', default='COM26')
+    ap.add_argument('--port', default=None, help='GR serial port; default: YP_GR_PORT or auto-detect')
     ap.add_argument('--poll-sec', type=float, default=30)
     ap.add_argument('--gr-sec', type=float, default=120)
     ap.add_argument('--stall-min', type=float, default=8)
     ap.add_argument('--silent-min', type=float, default=6)
     ap.add_argument('--max-min', type=float, default=90)
     a = ap.parse_args()
+    from gr_port import pick  # SAM | 2026-11-09 | the COM number changes: never hard-coded
+    a.port = pick(a.port)
     st = dict(phase=None, reason=None, step=None, progress=None, total=None, gr=None, seen_task=False,
               last_answer=time.time(), last_progress=time.time(), events=[])
 

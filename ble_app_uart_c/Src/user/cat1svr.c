@@ -41,15 +41,19 @@
 #include <stdio.h>
 #include "cli.h"
 #include "app_log.h"
+#include "app_timer.h"
 #include "ble_scanner.h"
 #include "../platform/user_periph_setup.h"
 #include "yp001_board_config.h"
 #include "yp001_scan_sched.h"
 #include "business/yp001_business.h"
+#include "yp001_psram_mem.h"
 
 Q_DEFINE_THIS_FILE
 // 全局唯一活动对象实例
 Cat1Svr AO_Cat1Svr;
+
+#define FEATURE_PARAM_MEMORY
 
 /************************* 静态硬件配置（对齐官方 app_uart 范例） *************************/
 static const app_uart_pin_cfg_t cat1_uart_pins = {
@@ -81,7 +85,13 @@ static const uart_init_t cat1_uart_cfg = {
 static const app_uart_dma_cfg_t cat1_dma_cfg = {0};
 ParaConfig_t g_config = {0};
 ParaBindMsg_t g_bind_msg = {0};
+
+
+
 static uint32_t s_receive_find_time = 0;
+static app_timer_id_t              s_cat_check_timing_id;
+static bool ca1_power_on = false;
+static int cmd_type = 0;
 
 // Check for the minimum required QP version
 #if (QP_VERSION < 700U) || (QP_VERSION != ((QP_RELEASE^4294967295U)%0x2710U))
@@ -90,6 +100,8 @@ static uint32_t s_receive_find_time = 0;
 
 
 extern void imei_persist(void);
+extern void config_save(void);
+extern void call_address_save(void);
 
 uint8_t json_pool_index;
 
@@ -106,6 +118,26 @@ char * json_pool_alloc(void) {
 
 void json_pool_free(char * buf) {
     (void)buf;
+}
+
+
+void *cat_malloc(uint32_t size)
+{
+#ifdef FEATURE_PARAM_MEMORY
+	return yp_psram_alloc(size);
+#else
+	return malloc(size);
+#endif
+}
+
+void cat_free(void *buf_ptr) {
+    if (buf_ptr) {
+		#ifdef FEATURE_PARAM_MEMORY
+        yp_psram_free(buf_ptr);
+		#else 
+		free(buf_ptr);
+		#endif
+    }    
 }
 
 
@@ -160,6 +192,125 @@ void Cat_start_gps_scan_test(void)
 
 }
 
+void Cat_hangup_sip_call(void)
+{
+	  cli_printf("Cat_hangup_sip_call \n");
+
+	  cli_execute_string("at SIP_HANGUP");
+
+}
+
+void Cat_reset(void)
+{
+	char sendBuf[128] = {0};
+
+	sprintf(sendBuf, "%s\n", "at ATREBOOT");
+
+	cli_execute_string(sendBuf);
+
+}
+
+void Cat_offline(void)
+{
+	const yp_business_status_t *b = yp_business_status();
+
+	cli_printf("Cat_offline battery_known = %d\n",b->battery_known);
+
+	if (yp001_ota_power_change_allowed() && b->battery_known) 
+	{
+		LocaSvr * const this = &LocaSvr_inst;
+		this->locate_type = LOCATE_TYPE_OFFLINE;
+		static QEvt online_evt = QEVT_INITIALIZER(OFFLINE_STATUS_SIG);
+		QACTIVE_POST(app_state_machine, &online_evt, 0U);
+	}
+
+}
+
+int Cat_get_batt_level(void)
+{
+	const yp_business_status_t *b = yp_business_status();
+
+	return b->battery_known ? b->battery_percent : 80;
+}
+
+// 10%上报
+int Cat_send_low_batt(int batt_level)
+{
+	/* SAM | 2026-11-08 +08:00 | OTA control-event demotion: UART4 belongs to the OTA window while a transaction is active; never inject a platform message mid-transfer. */
+	if (!yp001_ota_power_change_allowed()) { cli_printf("[OTA] %s dropped during protected update\n", "lowBatteryMsg"); return 0; }
+	const yp_business_status_t *b = yp_business_status();
+	char sendSting[2048] = {0};
+	char* at_prefix = "MQTT_SEND=";
+	char* sub_topic = NULL;
+
+	cJSON *root = cJSON_CreateObject();
+	
+	cJSON_AddStringToObject(root, "MsgType", "lowBatteryMsg");
+	cJSON_AddStringToObject(root, "Status", "lowBattery");
+	cJSON_AddNumberToObject(root, "Battery", batt_level);
+	
+	cJSON_AddNumberToObject(root, "Time", get_current_unix_timestamp());
+
+	char *tmpJson = cJSON_PrintUnformatted(root);
+	
+	printf("sendSting:[%d]\n",strlen(tmpJson));
+	// 释放 JSON 树
+	cJSON_Delete(root);
+	
+	sub_topic =  get_topic(LOCATE_TYPE_NONE,b->imei);
+	
+	sprintf(sendSting, "%s%s,%s\r\n", at_prefix, sub_topic, tmpJson);
+	
+	cli_printf("sendSting:[%s]\n",sendSting);
+
+	app_uart_transmit_sync(APP_UART_ID_4, (uint8_t *)sendSting, strlen(sendSting), 1000);
+
+	if (sub_topic != NULL) {
+		cat_free(sub_topic);
+		sub_topic = NULL;
+	}	
+
+	return 0; /* SAM | 2026-11-08 +08:00 | Non-void function must return; callers ignore the value. */
+}
+
+int Cat_send_reset_reply(int success)
+{
+	/* SAM | 2026-11-08 +08:00 | OTA control-event demotion: UART4 belongs to the OTA window while a transaction is active; never inject a platform message mid-transfer. */
+	if (!yp001_ota_power_change_allowed()) { cli_printf("[OTA] %s dropped during protected update\n", "rebootReplyMsg"); return 0; }
+	const yp_business_status_t *b = yp_business_status();
+	char sendSting[2048] = {0};
+	char* at_prefix = "MQTT_SEND=";
+	char* sub_topic = NULL;
+
+	cJSON *root = cJSON_CreateObject();
+	
+	cJSON_AddStringToObject(root, "MsgType", "rebootReplyMsg");
+	cJSON_AddStringToObject(root, "Status", success == 1 ? "success" : "fail");
+	
+	cJSON_AddNumberToObject(root, "Time", get_current_unix_timestamp());
+
+	char *tmpJson = cJSON_PrintUnformatted(root);
+	
+	// 释放 JSON 树
+	cJSON_Delete(root);
+	
+	sub_topic =  get_topic(LOCATE_TYPE_NONE,b->imei);
+	
+	sprintf(sendSting, "%s%s,%s\r\n", at_prefix, sub_topic, tmpJson);
+	
+	cli_printf("sendSting:[%s]\n",sendSting);
+
+	app_uart_transmit_sync(APP_UART_ID_4, (uint8_t *)sendSting, strlen(sendSting), 1000);
+
+	if (sub_topic != NULL) {
+		cat_free(sub_topic);
+		sub_topic = NULL;
+	}	
+
+	return 0; /* SAM | 2026-11-08 +08:00 | Non-void function must return; callers ignore the value. */
+}
+
+
 
 void Cat_Send_period_msg(void)
 {
@@ -190,7 +341,7 @@ void Cat_Send_period_msg(void)
 
 		char *tmpJson = cJSON_PrintUnformatted(root);
 
-		printf("sendSting:[%d]\n",strlen(tmpJson));
+		cli_printf("sendSting:[%d]\n",strlen(tmpJson));
 		// 释放 JSON 树
 		cJSON_Delete(root);
 		#if 0
@@ -238,33 +389,33 @@ char *get_msg_type(locasvc_locate_type locate_type)
 char *get_topic(locasvc_locate_type locate_type,char *imei)
 {
 	char *topic = NULL;
+	const yp_business_status_t *b = yp_business_status();
 
-	topic = malloc(64);
+	topic = cat_malloc(64);
 	memset(topic,0,64);
 	
 	if(locate_type == LOCATE_TYPE_SOS)
 	{
-		sprintf(topic,"%s%s","/iotplat/datapush3/sos/WARNCARD3/",imei);
+		sprintf(topic,"%s%s","/iotplat/datapush3/sos/WARNCARD3/",b->imei);
 	}
 	else 
 	{
-		sprintf(topic,"%s%s","/iotplat/datapush3/notsos/WARNCARD3/",imei);
+		sprintf(topic,"%s%s","/iotplat/datapush3/notsos/WARNCARD3/",b->imei);
 	}
 
 	return topic;
 }
 
-/* SAM | 2026-11-04 +08:00 | Post confirmed SOS once; queue-full retries stay in the business foreground. */
-bool yp_business_port_sos(bool start)
+void start_sos_process(bool bStart)
 {
-    static QEvt const start_evt = QEVT_INITIALIZER(SOS_START_SIG);
-    static QEvt const stop_evt = QEVT_INITIALIZER(SOS_STOP_SIG);
-    if (app_state_machine == NULL || app_state_machine->prio == 0U) return false;
-    return QACTIVE_POST_X(app_state_machine, start ? &start_evt : &stop_evt, 0U, 0U);
-}
-void start_sos_process(void)
-{
-    (void)yp_business_start_alarm();
+	cli_printf("start_sos_process bStart = %d\n",bStart);
+	
+    if (bStart) {
+        static QEvt online_evt = QEVT_INITIALIZER(SOS_KEY_SIG);
+        QACTIVE_POST(app_state_machine, &online_evt, 0U);
+    } else {
+        Cat_hangup_sip_call();
+    }
 }
 
 void start_find_device(void)
@@ -275,26 +426,6 @@ void start_find_device(void)
 
 }
 
-
-/* SAM | 2026-11-04 +08:00 | QP owns dialing and location; reject queued starts after cancellation. */
-static bool s_qp_sos_started;
-static QState LocaSvr_SosControl(LocaSvr * const me, QEvt const * const e)
-{
-    switch (e->sig) {
-        case SOS_START_SIG:
-            if (!yp_business_sos_start_allowed() || s_qp_sos_started) return Q_HANDLED();
-            s_qp_sos_started=true;
-            me->locate_type=LOCATE_TYPE_SOS;
-            return Q_TRAN(&LocaSvr_SOS_KEY_OK);
-        case SOS_STOP_SIG:
-            s_qp_sos_started=false;
-            yp_business_sos_stopped();
-            if (me->locate_type==LOCATE_TYPE_SOS) return Q_TRAN(&LocaSvr_Idle);
-            return Q_HANDLED();
-        default:
-            return Q_SUPER(&QHsm_top);
-    }
-}
 
 QState LocaSvr_initial(LocaSvr * const me, void const * const par) {
     
@@ -311,7 +442,7 @@ QState LocaSvr_MessageProcess(LocaSvr * const me, QEvt const * const e) {
         case Q_ENTRY_SIG: {
             QTimeEvt_armX(&me->timeEvt, 3U * BSP_TICKS_PER_SEC, 0U);
             //包装成json数据并通过MQTT发送出去
-            printf("Loca Enter MessageProcess state");
+            cli_printf("Loca Enter MessageProcess state\n");
 
             if (me->jsonBuf != NULL) {
                 char sendSting[2048] = {0};
@@ -324,12 +455,12 @@ QState LocaSvr_MessageProcess(LocaSvr * const me, QEvt const * const e) {
 
                 sprintf(sendSting, "%s%s,%s\r\n", at_prefix, sub_topic, json_data);
 
-                printf("sendSting:[%s]\n",sendSting);
+                cli_printf("sendSting:[%s]\n",sendSting);
                 //cli_execute_string(sendSting);
                 app_uart_transmit_sync(APP_UART_ID_4, (uint8_t *)sendSting, strlen(sendSting), 1000);
 
 				if (sub_topic != NULL) {
-					free(sub_topic);
+					cat_free(sub_topic);
 					sub_topic = NULL;
 				}	
             }
@@ -341,12 +472,12 @@ QState LocaSvr_MessageProcess(LocaSvr * const me, QEvt const * const e) {
         
         case Q_EXIT_SIG: {
             if (me->jsonBuf != NULL) {
-                free(me->jsonBuf);
+                cat_free(me->jsonBuf);
                 me->jsonBuf = NULL;
-                printf("JSON buffer free OK\n");
+                cli_printf("JSON buffer free OK\n");
             }
             (void)QTimeEvt_disarm(&me->timeEvt);
-            printf("Loca Exit MessageProcess  state");
+            cli_printf("Loca Exit MessageProcess  state\n");
 
 
             status_ = Q_HANDLED();
@@ -363,7 +494,7 @@ QState LocaSvr_MessageProcess(LocaSvr * const me, QEvt const * const e) {
             break;
         }
         default: {
-            status_ = Q_SUPER(&LocaSvr_SosControl);
+            status_ = Q_SUPER(&QHsm_top);
             break;
         }
     }
@@ -386,7 +517,7 @@ QState LocaSvr_BeaconProcess(LocaSvr * const me, QEvt const * const e) {
 			ble_scanner_start();
             //===========================================
             QTimeEvt_armX(&me->timeEvt, 3U * BSP_TICKS_PER_SEC, 0U);
-            printf("Loca Enter BeaconProcess state");
+            cli_printf("Loca Enter BeaconProcess state\n");
 
             status_ = Q_HANDLED();
             break;
@@ -396,7 +527,7 @@ QState LocaSvr_BeaconProcess(LocaSvr * const me, QEvt const * const e) {
 
             /* SAM | 2026-11-07 12:17 +08:00 | Release the radio lease on every state exit, including cancellation. */
             yp_scan_sched_radio_hold(YP_SCAN_HOLD_LOCATION, false);
-            printf("Loca Exit BeaconProcess\n");
+            cli_printf("Loca Exit BeaconProcess\n");
 
             (void)QTimeEvt_disarm(&me->timeEvt);
             status_ = Q_HANDLED();
@@ -413,7 +544,7 @@ QState LocaSvr_BeaconProcess(LocaSvr * const me, QEvt const * const e) {
             int8_t minRssi = 127;
             uint8_t minPos = 0;
 
-			printf("BEACON_DATA_SIG count = %d\n",pBuf->count);
+			cli_printf("BEACON_DATA_SIG count = %d\n",pBuf->count);
 
             //① 查找MAC是否已存在缓存
             for(uint8_t i=0; i < pBuf->count; i++)
@@ -476,7 +607,7 @@ QState LocaSvr_BeaconProcess(LocaSvr * const me, QEvt const * const e) {
             me->BEACONData.timestamp = get_current_unix_timestamp();
 
             // 2.打印本周期有效beacon数量
-            printf("Beacon timeout | ValidBeaconCnt = %d\n", me->BEACONData.count);
+            cli_printf("Beacon timeout | ValidBeaconCnt = %d\n", me->BEACONData.count);
 
             if (me->BEACONData.count > 0) {
 
@@ -497,8 +628,8 @@ QState LocaSvr_BeaconProcess(LocaSvr * const me, QEvt const * const e) {
 						}
 						else 
 						{
-							cJSON_AddStringToObject(root, "Version", "V01");
-							cJSON_AddNumberToObject(root, "Battery", 80);
+							cJSON_AddStringToObject(root, "Version", YP001_PRODUCT_VERSION);
+							cJSON_AddNumberToObject(root, "Battery", Cat_get_batt_level());
 
 						}
 						cJSON_AddNumberToObject(root, "Time", pScan->timestamp);
@@ -521,12 +652,12 @@ QState LocaSvr_BeaconProcess(LocaSvr * const me, QEvt const * const e) {
                         char *tmpJson = cJSON_PrintUnformatted(root);
                         if (tmpJson != NULL) {
                             if (me->jsonBuf != NULL) {
-                                free(me->jsonBuf);
+                                cat_free(me->jsonBuf);
                                 me->jsonBuf = NULL;
                             }
 
                             uint16_t len = strlen(tmpJson) + 1;
-                            me->jsonBuf = (char *)malloc(len);
+                            me->jsonBuf = (char *)cat_malloc(len);
                             if (me->jsonBuf != NULL) {
                                 memcpy(me->jsonBuf, tmpJson, len);
                             }
@@ -549,7 +680,7 @@ QState LocaSvr_BeaconProcess(LocaSvr * const me, QEvt const * const e) {
             break;
         }
         default: {
-            status_ = Q_SUPER(&LocaSvr_SosControl);
+            status_ = Q_SUPER(&QHsm_top);
             break;
         }
     }
@@ -564,14 +695,14 @@ QState LocaSvr_LBS(LocaSvr * const me, QEvt const * const e) {
         case Q_ENTRY_SIG: {
             QTimeEvt_armX(&me->timeEvt, 15U * BSP_TICKS_PER_SEC, 0U);
             //初始化 LBS_TIMMER
-            printf("Loca Enter LBS state");
+            cli_printf("Loca Enter LBS state");
 			Cat_start_lbs_scan();
             status_ = Q_HANDLED();
             break;
         }
         
         case Q_EXIT_SIG: {
-            printf("Loca Exit LBS state");
+            cli_printf("Loca Exit LBS state");
             (void)QTimeEvt_disarm(&me->timeEvt);
             status_ = Q_HANDLED();
             break;
@@ -579,10 +710,10 @@ QState LocaSvr_LBS(LocaSvr * const me, QEvt const * const e) {
         
         case TIMEOUT_SIG: // intentionally fall through
         case LBS_PROCESS_DONE_SIG: {
-            //printf("LBS timeout\n");
+            //cli_printf("LBS timeout\n");
             
             if (me->LBSData==0) {
-                //printf("me->LbsData==0");
+                //cli_printf("me->LbsData==0");
                 status_ = Q_TRAN(&LocaSvr_GPS);
             }
             
@@ -603,9 +734,8 @@ QState LocaSvr_LBS(LocaSvr * const me, QEvt const * const e) {
 				}
 				else 
 				{
-					cJSON_AddStringToObject(root, "Version", "V01");
-					cJSON_AddNumberToObject(root, "Battery", 80);
-				
+					cJSON_AddStringToObject(root, "Version", YP001_PRODUCT_VERSION);
+					cJSON_AddNumberToObject(root, "Battery", Cat_get_batt_level());
 				}
 
 				cJSON_AddNumberToObject(root, "Time", get_current_unix_timestamp());
@@ -618,16 +748,16 @@ QState LocaSvr_LBS(LocaSvr * const me, QEvt const * const e) {
 	            if (tmpJson != NULL) {
 
 					if (me->jsonBuf != NULL) {
-						free(me->jsonBuf);
+						cat_free(me->jsonBuf);
 						me->jsonBuf = NULL;
 					}
 					if (me->scan_result != NULL) {
-						free(me->scan_result);
+						cat_free(me->scan_result);
 						me->scan_result = NULL;
 					}
 
 					uint16_t len = strlen(tmpJson) + 1;
-					me->jsonBuf = (char *)malloc(len);
+					me->jsonBuf = (char *)cat_malloc(len);
 					if (me->jsonBuf != NULL) {
 						memcpy(me->jsonBuf, tmpJson, len);
 					}
@@ -644,7 +774,7 @@ QState LocaSvr_LBS(LocaSvr * const me, QEvt const * const e) {
             break;
         }
         default: {
-            status_ = Q_SUPER(&LocaSvr_SosControl);
+            status_ = Q_SUPER(&QHsm_top);
             break;
         }
     }
@@ -660,14 +790,14 @@ QState LocaSvr_WIFI(LocaSvr * const me, QEvt const * const e) {
         case Q_ENTRY_SIG: {
             QTimeEvt_armX(&me->timeEvt, 15U * BSP_TICKS_PER_SEC, 0U);
             //初始化 LBS_TIMMER
-            printf("Loca Enter WIFI state");
+            cli_printf("Loca Enter WIFI state");
 			Cat_start_wifi_scan();
             status_ = Q_HANDLED();
             break;
         }
         
         case Q_EXIT_SIG: {
-            printf("Loca Exit WIFI state");
+            cli_printf("Loca Exit WIFI state");
             (void)QTimeEvt_disarm(&me->timeEvt);
             status_ = Q_HANDLED();
             break;
@@ -675,10 +805,10 @@ QState LocaSvr_WIFI(LocaSvr * const me, QEvt const * const e) {
         
         case TIMEOUT_SIG: // intentionally fall through
         case WIFI_PROCESS_DONE_SIG: {
-            printf("WIFI_PROCESS_DONE_SIG\n");
+            cli_printf("WIFI_PROCESS_DONE_SIG\n");
             
             if (me->WIFIData == 0) {
-                //printf("me->LbsData==0");
+                //cli_printf("me->LbsData==0");
                 status_ = Q_TRAN(&LocaSvr_LBS);
             }
             
@@ -700,8 +830,8 @@ QState LocaSvr_WIFI(LocaSvr * const me, QEvt const * const e) {
 				}
 				else 
 				{
-					cJSON_AddStringToObject(root, "Version", "V01");
-					cJSON_AddNumberToObject(root, "Battery", 80);
+					cJSON_AddStringToObject(root, "Version", YP001_PRODUCT_VERSION);
+					cJSON_AddNumberToObject(root, "Battery", Cat_get_batt_level());
 				
 				}
 
@@ -712,20 +842,20 @@ QState LocaSvr_WIFI(LocaSvr * const me, QEvt const * const e) {
 
 				char *tmpJson = cJSON_PrintUnformatted(root);
 
-				printf("WIFI_PROCESS_DONE_SIG 111\n");
+				cli_printf("WIFI_PROCESS_DONE_SIG 111\n");
 
 	            if (tmpJson != NULL) {
 					if (me->jsonBuf != NULL) {
-						free(me->jsonBuf);
+						cat_free(me->jsonBuf);
 						me->jsonBuf = NULL;
 					}
 					if (me->scan_result != NULL) {
-						free(me->scan_result);
+						cat_free(me->scan_result);
 						me->scan_result = NULL;
 					}
 
 					uint16_t len = strlen(tmpJson) + 1;
-					me->jsonBuf = (char *)malloc(len);
+					me->jsonBuf = (char *)cat_malloc(len);
 					if (me->jsonBuf != NULL) {
 						memcpy(me->jsonBuf, tmpJson, len);
 					}
@@ -742,7 +872,7 @@ QState LocaSvr_WIFI(LocaSvr * const me, QEvt const * const e) {
             break;
         }
         default: {
-            status_ = Q_SUPER(&LocaSvr_SosControl);
+            status_ = Q_SUPER(&QHsm_top);
             break;
         }
     }
@@ -760,14 +890,14 @@ QState LocaSvr_GPS(LocaSvr * const me, QEvt const * const e) {
         case Q_ENTRY_SIG: {
             //QTimeEvt_armX(&me->timeEvt, 5U * BSP_TICKS_PER_SEC, 0U);
             //初始化 LBS_TIMMER
-            printf("Loca Enter GPS state");
+            cli_printf("Loca Enter GPS state");
 			Cat_start_gps_scan();
             status_ = Q_HANDLED();
             break;
         }
         
         case Q_EXIT_SIG: {
-            printf("Loca Exit GPS state");
+            cli_printf("Loca Exit GPS state");
             (void)QTimeEvt_disarm(&me->timeEvt);
             status_ = Q_HANDLED();
             break;
@@ -793,8 +923,8 @@ QState LocaSvr_GPS(LocaSvr * const me, QEvt const * const e) {
 				}
 				else 
 				{
-					cJSON_AddStringToObject(root, "Version", "V01");
-					cJSON_AddNumberToObject(root, "Battery", 80);
+					cJSON_AddStringToObject(root, "Version", YP001_PRODUCT_VERSION);
+					cJSON_AddNumberToObject(root, "Battery", Cat_get_batt_level());
 				
 				}
 
@@ -810,16 +940,16 @@ QState LocaSvr_GPS(LocaSvr * const me, QEvt const * const e) {
 				if (tmpJson != NULL) {
 				
 					if (me->jsonBuf != NULL) {
-						free(me->jsonBuf);
+						cat_free(me->jsonBuf);
 						me->jsonBuf = NULL;
 					}
 					if (me->scan_result != NULL) {
-						free(me->scan_result);
+						cat_free(me->scan_result);
 						me->scan_result = NULL;
 					}
 				
 					uint16_t len = strlen(tmpJson) + 1;
-					me->jsonBuf = (char *)malloc(len);
+					me->jsonBuf = (char *)cat_malloc(len);
 					if (me->jsonBuf != NULL) {
 						memcpy(me->jsonBuf, tmpJson, len);
 					}
@@ -847,8 +977,8 @@ QState LocaSvr_GPS(LocaSvr * const me, QEvt const * const e) {
 				}
 				else 
 				{
-					cJSON_AddStringToObject(root, "Version", "V01");
-					cJSON_AddNumberToObject(root, "Battery", 80);
+					cJSON_AddStringToObject(root, "Version", YP001_PRODUCT_VERSION);
+					cJSON_AddNumberToObject(root, "Battery", Cat_get_batt_level());
 				
 				}
 
@@ -862,16 +992,16 @@ QState LocaSvr_GPS(LocaSvr * const me, QEvt const * const e) {
 				if (tmpJson != NULL) {
 				
 					if (me->jsonBuf != NULL) {
-						free(me->jsonBuf);
+						cat_free(me->jsonBuf);
 						me->jsonBuf = NULL;
 					}
 					if (me->scan_result != NULL) {
-						free(me->scan_result);
+						cat_free(me->scan_result);
 						me->scan_result = NULL;
 					}
 				
 					uint16_t len = strlen(tmpJson) + 1;
-					me->jsonBuf = (char *)malloc(len);
+					me->jsonBuf = (char *)cat_malloc(len);
 					if (me->jsonBuf != NULL) {
 						memcpy(me->jsonBuf, tmpJson, len);
 					}
@@ -887,7 +1017,7 @@ QState LocaSvr_GPS(LocaSvr * const me, QEvt const * const e) {
             break;
         }
         default: {
-            status_ = Q_SUPER(&LocaSvr_SosControl);
+            status_ = Q_SUPER(&QHsm_top);
             break;
         }
     }
@@ -902,13 +1032,13 @@ QState LocaSvr_Idle(LocaSvr * const me, QEvt const * const e) {
         case Q_ENTRY_SIG: {
             //QTimeEvt_armX(&me->timeEvt, 7200U * BSP_TICKS_PER_SEC, 0U);
 
-            printf("Loca Enter idle state");
+            cli_printf("Loca Enter idle state\n");
             status_ = Q_HANDLED();
             break;
         }
         
         case Q_EXIT_SIG: {
-            printf("Loca Exit idle state");
+            cli_printf("Loca Exit idle state\n");
             //(void)QTimeEvt_disarm(&me->timeEvt);
             status_ = Q_HANDLED();
             break;
@@ -936,14 +1066,14 @@ QState LocaSvr_Idle(LocaSvr * const me, QEvt const * const e) {
 #endif // ((TK_Board_PAD_UART_DBG == 0)&&(TK_Board_1_1_UART_DBG == 1))
         
         case SOS_REPLY_SIG: {
-            printf("SOS_REPLY_SIG at LocaSvr\n");
+            cli_printf("SOS_REPLY_SIG at LocaSvr\n");
             status_ = Q_HANDLED();
             break;
         }
         
         case personSearchMsg_SIG: {
 			me->locate_type = LOCATE_TYPE_FIND_DEVICE;
-			printf("Loca Enter personSearchMsg_SIG");
+			cli_printf("Loca Enter personSearchMsg_SIG\n");
             status_ = Q_TRAN(&LocaSvr_BeaconProcess);
             break;
         }
@@ -962,19 +1092,19 @@ QState LocaSvr_Idle(LocaSvr * const me, QEvt const * const e) {
         }
 #endif // ((TK_Board_PAD_UART_DBG == 1)&&(TK_Board_1_1_UART_DBG == 0))
 		case ONLINE_STATUS_SIG: {
-			printf("Loca Enter ONLINE_STATUS_SIG");
+			cli_printf("Loca Enter ONLINE_STATUS_SIG\n");
 			status_ = Q_TRAN(&LocaSvr_BeaconProcess);
 			break;
 		}
 		case OFFLINE_STATUS_SIG: {
 			me->locate_type = LOCATE_TYPE_OFFLINE;
-			printf("Loca Enter OFFLINE_STATUS_SIG");
+			cli_printf("Loca Enter OFFLINE_STATUS_SIG\n");
 			status_ = Q_TRAN(&LocaSvr_BeaconProcess);
 			break;
 		}			
 
         default: {
-            status_ = Q_SUPER(&LocaSvr_SosControl);
+            status_ = Q_SUPER(&QHsm_top);
             break;
         }
     }
@@ -990,13 +1120,13 @@ QState LocaSvr_SOSKeyPressed(LocaSvr * const me, QEvt const * const e) {
         
         case Q_ENTRY_SIG: {
             QTimeEvt_armX(&me->timeEvt, 3U * BSP_TICKS_PER_SEC, 0U);
-            printf("Loca Enter SOSKeyPressed state");
+            cli_printf("Loca Enter SOSKeyPressed state\n");
             status_ = Q_HANDLED();
             break;
         }
         
         case Q_EXIT_SIG: {
-            printf("Loca Exit SOSKeyPressed\n");
+            cli_printf("Loca Exit SOSKeyPressed\n");
 
             (void)QTimeEvt_disarm(&me->timeEvt);
             status_ = Q_HANDLED();
@@ -1013,7 +1143,7 @@ QState LocaSvr_SOSKeyPressed(LocaSvr * const me, QEvt const * const e) {
             break;
         }
         default: {
-            status_ = Q_SUPER(&LocaSvr_SosControl);
+            status_ = Q_SUPER(&QHsm_top);
             break;
         }
     }
@@ -1030,13 +1160,13 @@ QState LocaSvr_SOSKeyRPressed(LocaSvr * const me, QEvt const * const e) {
         
         case Q_ENTRY_SIG: {
             QTimeEvt_armX(&me->timeEvt, 3U * BSP_TICKS_PER_SEC, 0U);
-            printf("Loca Enter SOSKeyRPressed state");
+            cli_printf("Loca Enter SOSKeyRPressed state\n");
             status_ = Q_HANDLED();
             break;
         }
         
         case Q_EXIT_SIG: {
-            printf("Loca Exit SOSKeyRPressed\n");
+            cli_printf("Loca Exit SOSKeyRPressed\n");
 
             (void)QTimeEvt_disarm(&me->timeEvt);
             status_ = Q_HANDLED();
@@ -1053,7 +1183,7 @@ QState LocaSvr_SOSKeyRPressed(LocaSvr * const me, QEvt const * const e) {
             break;
         }
         default: {
-            status_ = Q_SUPER(&LocaSvr_SosControl);
+            status_ = Q_SUPER(&QHsm_top);
             break;
         }
     }
@@ -1068,7 +1198,7 @@ QState LocaSvr_SOS_KEY_OK(LocaSvr * const me, QEvt const * const e) {
         
         case Q_ENTRY_SIG: {
             QTimeEvt_armX(&me->timeEvt, 1U * BSP_TICKS_PER_SEC, 0U);
-            printf("Loca Enter SOSKey_ok state");
+            cli_printf("Loca Enter SOSKey_ok state num = %s",g_bind_msg.call_out);
             #ifdef CC_CALL
             cli_execute_string("at TTSPLAY=报警成功,1,5");
             #else
@@ -1080,7 +1210,12 @@ QState LocaSvr_SOS_KEY_OK(LocaSvr * const me, QEvt const * const e) {
 			  QASM_DISPATCH((QHsm *)&this->sip, &startInit, 0);
 			  (void)QTimeEvt_disarm(&this->sipInitEvt);    
 			#else 
-				cli_execute_string("at SIP_INIT");
+				#ifndef CAT1_CONFIG_TEST
+				if(strlen(g_bind_msg.call_out) > 0)
+				#endif	
+				{
+					cli_execute_string("at SIP_INIT");
+				}
 			#endif
             #endif
             status_ = Q_HANDLED();
@@ -1088,7 +1223,7 @@ QState LocaSvr_SOS_KEY_OK(LocaSvr * const me, QEvt const * const e) {
         }
         
         case Q_EXIT_SIG: {
-            printf("Loca Exit SOSKey_ok state\n");
+            cli_printf("Loca Exit SOSKey_ok state\n");
 
             (void)QTimeEvt_disarm(&me->timeEvt);
             status_ = Q_HANDLED();
@@ -1101,7 +1236,7 @@ QState LocaSvr_SOS_KEY_OK(LocaSvr * const me, QEvt const * const e) {
             break;
         }
         default: {
-            status_ = Q_SUPER(&LocaSvr_SosControl);
+            status_ = Q_SUPER(&QHsm_top);
             break;
         }
     }
@@ -1127,13 +1262,13 @@ QState Cat_Sip_sip_idle(Cat_Sip * const me, QEvt const * const e) {
     switch (e->sig) {
         
         case Q_ENTRY_SIG: {
-            printf("Cat_Sip_sip_idle enter");
+            cli_printf("Cat_Sip_sip_idle enter\n");
             status_ = Q_HANDLED();
             break;
         }
         
         case Q_EXIT_SIG: {
-            printf("Cat_Sip_sip_idle exit");
+            cli_printf("Cat_Sip_sip_idle exit\n");
             status_ = Q_HANDLED();
             break;
         }
@@ -1162,16 +1297,28 @@ QState Cat_Sip_dail(Cat_Sip * const me, QEvt const * const e) {
     switch (e->sig) {
         
         case Q_ENTRY_SIG: {
-            cli_execute_string("at SIP_DIAL");
-            /* SAM | 2026-11-07 11:57 +08:00 | QP starts this dial outside CAT1 business_core, so publish its dialing state to the UI. */
+			#ifdef CAT1_CONFIG_TEST
+			char buf[30] = {0};
+			sprintf(buf, "%s", "at SIP_DIAL");
+			cli_execute_string(buf);
+
+			#else
+			if(strlen(g_bind_msg.call_out) > 0)
+			{
+				char buf[30] = {0};
+				sprintf(buf, "%s%s", "at SIP_DIAL=",g_bind_msg.call_out);
+            	cli_execute_string(buf);
+			}
+			#endif
+            /* SAM | 2026-11-08 +08:00 | Colleague dial path kept; our QP dial-state publish stays because OTA call gating reads it (was 11-07 11:57). */
             yp_business_call_set(YP_CALL_DIALING);
-            printf("Cat_Sip_dail");
+            cli_printf("Cat_Sip_dail\n");
             status_ = Q_HANDLED();
             break;
         }
         
         case Q_EXIT_SIG: {
-            printf("cc/sip Cat_Sip_dail out");
+            cli_printf("cc/sip Cat_Sip_dail out\n");
             status_ = Q_HANDLED();
             break;
         }
@@ -1181,13 +1328,13 @@ QState Cat_Sip_dail(Cat_Sip * const me, QEvt const * const e) {
         }
         case SIP_DISCONNECT_SIG:
         case CC_DISCONNECT_SIG: {
-			printf("DAIL SIP_DISCONNECT_SIG");
+			cli_printf("DAIL SIP_DISCONNECT_SIG\n");
             status_ = Q_TRAN(&Cat_Sip_idle);
             break;
         }
         case SIP_INCOMING_SIG: // intentionally fall through
 		{
-			 printf("DAIL SIP_INCOMING_SIG");
+			 cli_printf("DAIL SIP_INCOMING_SIG\n");
             status_ = Q_TRAN(&Cat_Sip_Coming_Calling);
             break;
 		}
@@ -1207,13 +1354,13 @@ QState Cat_Sip_Coming_Calling(Cat_Sip * const me, QEvt const * const e) {
         
         case Q_ENTRY_SIG: {
             //cli_execute_string("at CC_INIT");
-            printf("cc/sip Coming_Calling in");
+            cli_printf("cc/sip Coming_Calling in\n");
             status_ = Q_HANDLED();
             break;
         }
         
         case Q_EXIT_SIG: {
-            printf("cc/sip Coming_Calling out");
+            cli_printf("cc/sip Coming_Calling out\n");
             status_ = Q_HANDLED();
             break;
         }
@@ -1261,13 +1408,13 @@ QState Cat_Sip_connected(Cat_Sip * const me, QEvt const * const e) {
     switch (e->sig) {
         
         case Q_ENTRY_SIG: {
-            printf("Cat_Sip_connected  in");
+            cli_printf("Cat_Sip_connected  in\n");
             status_ = Q_HANDLED();
             break;
         }
         
         case Q_EXIT_SIG: {
-            printf("Cat_Sip_connected out");
+            cli_printf("Cat_Sip_connected out\n");
             status_ = Q_HANDLED();
             break;
         }
@@ -1290,7 +1437,7 @@ QState Cat_Sip_connected(Cat_Sip * const me, QEvt const * const e) {
         // SAM | 2026-11-07 10:58 +08:00 | Handle SIP disconnect because VoIP call end must leave connected state.
         case SIP_DISCONNECT_SIG:
         case CC_DISCONNECT_SIG: {
-			printf("Cat_Sip_connected CC_DISCONNECT_SIG");
+			cli_printf("Cat_Sip_connected SIP_DISCONNECT_SIG\n");
             status_ = Q_TRAN(&Cat_Sip_idle);
             break;
         }
@@ -1308,13 +1455,13 @@ QState Cat_Sip_idle(Cat_Sip * const me, QEvt const * const e) {
     switch (e->sig) {
         
         case Q_ENTRY_SIG: {
-            printf("call Cat_Sip_idle in");
+            cli_printf("call Cat_Sip_idle in\n");
             status_ = Q_HANDLED();
             break;
         }
         
         case Q_EXIT_SIG: {
-            printf("call Cat_Sip_idle out");
+            cli_printf("call Cat_Sip_idle out\n");
             status_ = Q_HANDLED();
             break;
         }
@@ -1327,13 +1474,15 @@ QState Cat_Sip_idle(Cat_Sip * const me, QEvt const * const e) {
         
         case SIP_INCOMING_SIG: // intentionally fall through
         case CC_MAKE_CALL_OK_SIG: {
-			printf("call Cat_Sip_idle SIP_INCOMING_SIG");
+			cli_printf("call Cat_Sip_idle SIP_INCOMING_SIG\n");
             status_ = Q_TRAN(&Cat_Sip_Coming_Calling);
             break;
         }
-		case SIP_DAIL_SIG:
-			status_ = Q_TRAN(&Cat_Sip_dail);
-			break;
+        case SIP_DAIL_SIG:
+            /* SAM | 2026-11-07 +08:00 | A known empty destination cannot dial; unknown old receivers retain the existing GR-first OTA behavior. */
+            if (!yp_business_call_out_known() || yp_business_call_out()[0]!=0) status_ = Q_TRAN(&Cat_Sip_dail);
+            else { printf("SIP dial skipped: invalid CallOut\n"); status_ = Q_HANDLED(); }
+            break;
         default: {
             status_ = Q_SUPER(&QHsm_top);
             break;
@@ -1349,13 +1498,13 @@ QState Cat_Sip_initing(Cat_Sip * const me, QEvt const * const e) {
         
         case Q_ENTRY_SIG: {
             //cli_execute_string("at CC_INIT");
-            printf("cc/sip initing in");
+            cli_printf("cc/sip initing in\n");
             status_ = Q_HANDLED();
             break;
         }
         
         case Q_EXIT_SIG: {
-            printf("cc/sip initing out");
+            cli_printf("cc/sip initing out\n");
             status_ = Q_HANDLED();
             break;
         }
@@ -1400,7 +1549,9 @@ void Cat_Mqtts_parse_bind_msg(Cat_Mqtts * const me,cJSON * root)
 	if ((item = cJSON_GetObjectItem(root, "CmdType")) && cJSON_IsNumber(item)) {
 		g_bind_msg.CmdType = item->valueint;
 	}
-	if ((item = cJSON_GetObjectItem(root, "CallOut")) && cJSON_IsString(item)) {
+    /* SAM | 2026-11-07 +08:00 | Empty clears the destination; reject malformed/overlength updates without truncating a phone number. */
+    if ((item = cJSON_GetObjectItem(root, "CallOut")) && cJSON_IsString(item) &&
+        yp_business_call_out_set(item->valuestring)) {
 		strncpy(g_bind_msg.call_out, item->valuestring, sizeof(g_bind_msg.call_out) - 1);
 		g_bind_msg.call_out[sizeof(g_bind_msg.call_out) - 1] = '\0';
 	}
@@ -1414,52 +1565,66 @@ void Cat_Mqtts_parse_bind_msg(Cat_Mqtts * const me,cJSON * root)
 
 			item_part = cJSON_GetArrayItem(item,i);
 
-			strncpy(g_bind_msg.call_in[i], item->valuestring, sizeof(g_bind_msg.call_in[i]) - 1);
-			g_bind_msg.call_in[i][sizeof(g_bind_msg.call_in[i]) - 1] = '\0';			
+			memset(g_bind_msg.call_in[i],0,sizeof(g_bind_msg.call_in[i]));
+			strcpy(g_bind_msg.call_in[i],item->valuestring);		
 			
 		}
 	}
 
+	call_address_save();
 }
 
 
 void Cat_Mqtts_parse_and_store_config(Cat_Mqtts * const me,
     cJSON * root)
 {
-    printf("parse_and_store_config");
+    cli_printf("parse_and_store_config");
         if (root == NULL) {
-            printf("parse_and_store_config: root is NULL\n");
+            cli_printf("parse_and_store_config: root is NULL\n");
             return;
         }
 
         cJSON *item;
+		
 
         // 清零结构体（使得未设置的字段为 0，字符串为空）
         // 如果希望保留旧值，可以注释掉这一行
-        memset(&g_config, 0, sizeof(g_config));
+        //memset(&g_config, 0, sizeof(g_config));
 
         // ----- 顶层字段 -----
         if ((item = cJSON_GetObjectItem(root, "MsgType")) && cJSON_IsString(item)) {
-            strncpy(g_config.MsgType, item->valuestring, sizeof(g_config.MsgType) - 1);
-            g_config.MsgType[sizeof(g_config.MsgType) - 1] = '\0';
+            //strncpy(g_config.MsgType, item->valuestring, sizeof(g_config.MsgType) - 1);
+            //g_config.MsgType[sizeof(g_config.MsgType) - 1] = '\0';
         }
         if ((item = cJSON_GetObjectItem(root, "CmdType")) && cJSON_IsNumber(item)) {
-            g_config.CmdType = item->valueint;
+            //g_config.CmdType = item->valueint;
+            cmd_type = item->valueint;
         }
         if ((item = cJSON_GetObjectItem(root, "Time")) && cJSON_IsNumber(item)) {
-            g_config.Time = (int)item->valuedouble;  // 注意时间戳可能超出 int 范围，建议用 long long
+            //g_config.Time = (int)item->valuedouble;  // 注意时间戳可能超出 int 范围，建议用 long long
         }
+
+		if(cmd_type == 0)
+		{
+			cli_printf("ParaData is query\n");
+			return;
+		}
+
 
         // ----- ParaData 对象 -----
         cJSON *para_data = cJSON_GetObjectItem(root, "ParaData");
         if (!para_data || !cJSON_IsObject(para_data)) {
-            printf("ParaData is missing or not an object\n");
+            cli_printf("ParaData is missing or not an object\n");
             return;
         }
+
+		memset(&g_config, 0, sizeof(g_config));
 
         // 数字字段
         if ((item = cJSON_GetObjectItem(para_data, "PeriodicPara")) && cJSON_IsNumber(item))
             g_config.PeriodicPara = item->valueint;
+        if ((item = cJSON_GetObjectItem(para_data, "BleScanCntPara")) && cJSON_IsNumber(item))
+            g_config.BleScanCntPara = item->valueint;		
         if ((item = cJSON_GetObjectItem(para_data, "BleScanInterval")) && cJSON_IsNumber(item))
             g_config.BleScanInterval = item->valueint;
         if ((item = cJSON_GetObjectItem(para_data, "BleScanPeriod")) && cJSON_IsNumber(item))
@@ -1484,7 +1649,7 @@ void Cat_Mqtts_parse_and_store_config(Cat_Mqtts * const me,
             g_config.BeaconUploadMethod = item->valueint;
         if ((item = cJSON_GetObjectItem(para_data, "MqttClientKeepAliveInterval")) && cJSON_IsNumber(item))
             g_config.MqttClientKeepAliveInterval = item->valueint;
-            printf("DEBUG: MqttClientKeepAliveInterval = %d\n", g_config.MqttClientKeepAliveInterval);
+            cli_printf("DEBUG: MqttClientKeepAliveInterval = %d\n", g_config.MqttClientKeepAliveInterval);
 
         // 字符串字段
         if ((item = cJSON_GetObjectItem(para_data, "BeaconUploadAddr")) && cJSON_IsString(item)) {
@@ -1516,64 +1681,74 @@ void Cat_Mqtts_parse_and_store_config(Cat_Mqtts * const me,
             g_config.VoipPasswd[sizeof(g_config.VoipPasswd) - 1] = '\0';
         }
 
-        printf("Config updated successfully.\n");
+		config_save();
+		
+        cli_printf("Config updated successfully.\n");
 
 
 }
 
 
 void Cat_Mqtts_print_config(Cat_Mqtts * const me) {
-        printf("========== Current Config ==========\n");
-        printf("MsgType: %s\n", g_config.MsgType);
-        printf("CmdType: %d\n", g_config.CmdType);
-        printf("Time: %d\n", g_config.Time);
-        printf("ParaData:\n");
-        printf("  PeriodicPara: %d\n", g_config.PeriodicPara);
-        printf("  BleScanInterval: %d\n", g_config.BleScanInterval);
-        printf("  BleScanPeriod: %d\n", g_config.BleScanPeriod);
-        printf("  RestTime: %d\n", g_config.RestTime);
-        printf("  PowerThreshold: %d\n", g_config.PowerThreshold);
-        printf("  SleepTimeout: %d\n", g_config.SleepTimeout);
-        printf("  SosReplyTimeout: %d\n", g_config.SosReplyTimeout);
-        printf("  SosLocationReplyTimeout: %d\n", g_config.SosLocationReplyTimeout);
-        printf("  SosTime: %d\n", g_config.SosTime);
-        printf("  BeaconUploadMethod: %d\n", g_config.BeaconUploadMethod);
-        printf("  MqttClientKeepAliveInterval: %d\n", g_config.MqttClientKeepAliveInterval);
-        printf("  BeaconUploadAddr: %s\n", g_config.BeaconUploadAddr);
-        printf("  MqttAddr: %s\n", g_config.MqttAddr);
-        printf("  MqttUser: %s\n", g_config.MqttUser);
-        printf("  MqttPasswd: %s\n", g_config.MqttPasswd);
-        printf("=====================================\n");
+        cli_printf("========== Current Config ==========\n");
+        cli_printf("MsgType: %s\n", g_config.MsgType);
+        cli_printf("CmdType: %d\n", g_config.CmdType);
+        cli_printf("Time: %d\n", g_config.Time);
+        cli_printf("ParaData:\n");
+        cli_printf("  PeriodicPara: %d\n", g_config.PeriodicPara);
+        cli_printf("  BleScanInterval: %d\n", g_config.BleScanInterval);
+        cli_printf("  BleScanPeriod: %d\n", g_config.BleScanPeriod);
+        cli_printf("  RestTime: %d\n", g_config.RestTime);
+        cli_printf("  PowerThreshold: %d\n", g_config.PowerThreshold);
+        cli_printf("  SleepTimeout: %d\n", g_config.SleepTimeout);
+        cli_printf("  SosReplyTimeout: %d\n", g_config.SosReplyTimeout);
+        cli_printf("  SosLocationReplyTimeout: %d\n", g_config.SosLocationReplyTimeout);
+        cli_printf("  SosTime: %d\n", g_config.SosTime);
+        cli_printf("  BeaconUploadMethod: %d\n", g_config.BeaconUploadMethod);
+        cli_printf("  MqttClientKeepAliveInterval: %d\n", g_config.MqttClientKeepAliveInterval);
+        cli_printf("  BeaconUploadAddr: %s\n", g_config.BeaconUploadAddr);
+        cli_printf("  MqttAddr: %s\n", g_config.MqttAddr);
+        cli_printf("  MqttUser: %s\n", g_config.MqttUser);
+        cli_printf("  MqttPasswd: %s\n", g_config.MqttPasswd);
+        cli_printf("=====================================\n");
 
 }
 
 
 void Cat_Mqtts_send_config_via_mqtt(Cat_Mqtts * const me) {
-    printf("parse_and_store_config");
+    cli_printf("parse_and_store_config");
         cJSON *root = cJSON_CreateObject();
         if (!root) {
-            printf("send_config_via_mqtt: cJSON_CreateObject failed\n");
+            cli_printf("send_config_via_mqtt: cJSON_CreateObject failed\n");
             return;
         }
 
         // 添加顶层字段
-        cJSON_AddStringToObject(root, "MsgType", g_config.MsgType);
-        cJSON_AddNumberToObject(root, "CmdType", g_config.CmdType);
-        cJSON_AddNumberToObject(root, "Time", g_config.Time);
+        cJSON_AddStringToObject(root, "MsgType", "paraSetReplyMsg");
+        cJSON_AddNumberToObject(root, "CmdType", cmd_type);
+        cJSON_AddNumberToObject(root, "Time", get_current_unix_timestamp());
 
         // 创建 ParaData 对象
         cJSON *para_data = cJSON_CreateObject();
         if (!para_data) {
             cJSON_Delete(root);
-            printf("send_config_via_mqtt: cJSON_CreateObject for ParaData failed\n");
+            cli_printf("send_config_via_mqtt: cJSON_CreateObject for ParaData failed\n");
             return;
         }
         cJSON_AddItemToObject(root, "ParaData", para_data);
 
         // 添加所有 ParaData 字段
-        cJSON_AddNumberToObject(para_data, "PeriodicPara", g_config.PeriodicPara);
-        cJSON_AddNumberToObject(para_data, "BleScanInterval", g_config.BleScanInterval);
-        cJSON_AddNumberToObject(para_data, "BleScanPeriod", g_config.BleScanPeriod);
+        cJSON_AddNumberToObject(para_data, "PeriodicPara", g_config.PeriodicPara > 0
+               ? (uint32_t)g_config.PeriodicPara : YP_SCAN_PERIODIC_FALLBACK_MIN);
+		
+		cJSON_AddNumberToObject(para_data, "BleScanCntPara", g_config.BleScanCntPara);
+		
+        cJSON_AddNumberToObject(para_data, "BleScanInterval", g_config.BleScanInterval > 0
+               ? (uint32_t)g_config.BleScanInterval : YP_SCAN_INTERVAL_BASE_MIN);
+		
+        cJSON_AddNumberToObject(para_data, "BleScanPeriod", g_config.BleScanPeriod > 0
+               ? (uint32_t)g_config.BleScanPeriod : YP_SCAN_WINDOW_SEC);
+		
 		cJSON_AddNumberToObject(para_data, "AutoOta", g_config.AutoOta);
 		cJSON_AddNumberToObject(para_data, "CallType", g_config.CallType);
         cJSON_AddNumberToObject(para_data, "RestTime", g_config.RestTime);
@@ -1583,12 +1758,12 @@ void Cat_Mqtts_send_config_via_mqtt(Cat_Mqtts * const me) {
         cJSON_AddNumberToObject(para_data, "SosLocationReplyTimeout", g_config.SosLocationReplyTimeout);
         cJSON_AddNumberToObject(para_data, "SosTime", g_config.SosTime);
         cJSON_AddNumberToObject(para_data, "BeaconUploadMethod", g_config.BeaconUploadMethod);
-        cJSON_AddNumberToObject(para_data, "MqttClientKeepAliveInterval", g_config.MqttClientKeepAliveInterval);
 
         cJSON_AddStringToObject(para_data, "BeaconUploadAddr", g_config.BeaconUploadAddr);
         cJSON_AddStringToObject(para_data, "MqttAddr", g_config.MqttAddr);
         cJSON_AddStringToObject(para_data, "MqttUser", g_config.MqttUser);
         cJSON_AddStringToObject(para_data, "MqttPasswd", g_config.MqttPasswd);
+        cJSON_AddNumberToObject(para_data, "MqttClientKeepAliveInterval", g_config.MqttClientKeepAliveInterval);
         cJSON_AddStringToObject(para_data, "VoipAddr", g_config.VoipAddr);
         cJSON_AddStringToObject(para_data, "VoipUser", g_config.VoipUser);
         cJSON_AddStringToObject(para_data, "VoipPasswd", g_config.VoipPasswd);
@@ -1596,7 +1771,7 @@ void Cat_Mqtts_send_config_via_mqtt(Cat_Mqtts * const me) {
         // 生成紧凑 JSON 字符串（不带换行和空格）
         char *json_str = cJSON_PrintUnformatted(root);
         if (!json_str) {
-            printf("send_config_via_mqtt: cJSON_PrintUnformatted failed\n");
+            cli_printf("send_config_via_mqtt: cJSON_PrintUnformatted failed\n");
             cJSON_Delete(root);
             return;
         }
@@ -1606,7 +1781,7 @@ void Cat_Mqtts_send_config_via_mqtt(Cat_Mqtts * const me) {
         char sendBuf[2048] = {0};
         int len = snprintf(sendBuf, sizeof(sendBuf), "MQTT_SEND=%s%s,%s", topic, AO_Cat1Svr.IMEI,json_str);
         if (len < 0 || len >= sizeof(sendBuf)) {
-            printf("send_config_via_mqtt: sendBuf too small\n");
+            cli_printf("send_config_via_mqtt: sendBuf too small\n");
             cJSON_free(json_str);
             cJSON_Delete(root);
             return;
@@ -1623,7 +1798,7 @@ void Cat_Mqtts_send_config_via_mqtt(Cat_Mqtts * const me) {
         cJSON_free(json_str);
         cJSON_Delete(root);
 
-        printf("Config sent successfully.\n");
+        cli_printf("Config sent successfully.\n");
 
 }
 
@@ -1651,7 +1826,7 @@ QState Cat_Mqtts_idle(Cat_Mqtts * const me, QEvt const * const e) {
         }
         
         case MQTTS_RECV_DATA_FROM_SERVER_SIG: {
-                printf("mqtts entry process");
+                cli_printf("mqtts entry process");
 
                 // 0. 先清空上一次残留，防止旧数据干扰
                 me->msg_type[0] = '\0';
@@ -1665,17 +1840,17 @@ QState Cat_Mqtts_idle(Cat_Mqtts * const me, QEvt const * const e) {
 
                 cJSON *cmd_type = cJSON_GetObjectItem(me->root, "CmdType");
                 if (cJSON_IsNumber(cmd_type)) {
-                    printf("CmdType: %d\n", cmd_type->valueint);
+                    cli_printf("CmdType: %d\n", cmd_type->valueint);
                 }
 
                 cJSON *time = cJSON_GetObjectItem(me->root, "Time");
                 if (cJSON_IsNumber(time)) {
-                    printf("Time: %.0f\n", time->valuedouble);
+                    cli_printf("Time: %.0f\n", time->valuedouble);
                 }
             
             if (me->root == NULL) {
                 const char *err = cJSON_GetErrorPtr();
-                printf("JSON parse error: %s\n", err ? err : "unknown error");
+                cli_printf("JSON parse error: %s\n", err ? err : "unknown error");
 
                 // 关键：解析失败也要把指针置为NULL，避免exit误操作
                 me->root = NULL;
@@ -1688,7 +1863,7 @@ QState Cat_Mqtts_idle(Cat_Mqtts * const me, QEvt const * const e) {
                     me->msg_type[sizeof(me->msg_type) - 1] = '\0';
                 
                 if (cJSON_IsString(cJSON_GetObjectItem(me->root, "MsgType"))==0) {
-                     printf("MsgType not string\n");
+                     cli_printf("MsgType not string\n");
                     status_ = Q_HANDLED();
                 }
                 
@@ -1701,12 +1876,22 @@ QState Cat_Mqtts_idle(Cat_Mqtts * const me, QEvt const * const e) {
                     
                     if (strcmp(me->msg_type, "rebootMsg") == 0) {
                         //printf("reboot");
-                        if (yp001_ota_power_change_allowed()) NVIC_SystemReset();
+                        if (yp001_ota_power_change_allowed()) 
+						{
+							
+							Cat_send_reset_reply(1);
+							//Cat_reset();
+							NVIC_SystemReset();
+						}
+						else 
+						{
+							Cat_send_reset_reply(0);
+						}
                         status_ = Q_HANDLED();
                     }
                     
                     else if ((strcmp(me->msg_type, "sosReplyMsg") == 0) && (cJSON_GetObjectItem(me->root, "Status") != NULL && cJSON_IsString(cJSON_GetObjectItem(me->root, "Status")) && strcmp(cJSON_GetObjectItem(me->root, "Status")->valuestring, "success") == 0)) {
-                        printf("sosReplyMsg success\n");
+                        cli_printf("sosReplyMsg success\n");
                         QEvt *e = Q_NEW(QEvt, SOS_REPLY_SIG);
                         if (e != NULL) {
                             QACTIVE_POST(app_state_machine, e, (void*)0);
@@ -1715,20 +1900,20 @@ QState Cat_Mqtts_idle(Cat_Mqtts * const me, QEvt const * const e) {
                     }
                     
                     else if ((strcmp(me->msg_type, "sosLocationReplyMsg") == 0) && (cJSON_GetObjectItem(me->root, "Status") != NULL && cJSON_IsString(cJSON_GetObjectItem(me->root, "Status")) && strcmp(cJSON_GetObjectItem(me->root, "Status")->valuestring, "success") == 0)) {
-                        printf("sosLocationReplyMsg success\n");
-                        /* SAM | 2026-11-04 +08:00 | A location delivery ACK never ends the SOS alarm (F-002/F-033). */
+                        cli_printf("sosLocationReplyMsg success\n");
+						//yp_business_cancel_alarm();
                         status_ = Q_HANDLED();
                     }
                     
                     else if (strcmp(me->msg_type, "phoneBindMsg") == 0) {
-                        printf("phoneBindMsg\n");
+                        cli_printf("phoneBindMsg\n");
 						Cat_Mqtts_parse_bind_msg(me, me->root);
 					
                         status_ = Q_HANDLED();
                     }
                     
                     else if (strcmp(me->msg_type, "paraSetMsg") == 0) {
-                           printf("paraSetMsg\n");
+                           cli_printf("paraSetMsg\n");
                             // 直接传入整个 me->root
                             Cat_Mqtts_parse_and_store_config(me, me->root);
                             // 解析完成后释放整个 root
@@ -1745,7 +1930,7 @@ QState Cat_Mqtts_idle(Cat_Mqtts * const me, QEvt const * const e) {
                     }
                     
                     else if (strcmp(me->msg_type, "personSearchMsg") == 0) {
-						printf("personSearchMsg\n");
+						cli_printf("personSearchMsg\n");
                         static QEvt personSearch_evt = QEVT_INITIALIZER(personSearchMsg_SIG);
                         QACTIVE_POST(app_state_machine, &personSearch_evt, 0U);
 						s_receive_find_time = get_current_unix_timestamp();
@@ -1753,17 +1938,12 @@ QState Cat_Mqtts_idle(Cat_Mqtts * const me, QEvt const * const e) {
                     }
                     
                     else if (strcmp(me->msg_type, "logMsg") == 0) {
-                        printf("otaMsg\n");
-                        status_ = Q_HANDLED();
-                    }
-                    
-                    else if (strcmp(me->msg_type, "logMsg") == 0) {
-                        printf("logMsg\n");
+                        cli_printf("logMsg\n");
                         status_ = Q_HANDLED();
                     }
                     
                     else {
-                        printf("cmd:%s",me->msg_type);
+                        cli_printf("cmd:%s",me->msg_type);
                         cli_execute_string(me->msg_type);
                         status_ = Q_HANDLED();
                     }
@@ -1779,7 +1959,29 @@ QState Cat_Mqtts_idle(Cat_Mqtts * const me, QEvt const * const e) {
     return status_;
 }
 
+static void cat1_check_timeout_check(void *p_arg)
+{
+	cli_printf("cat1_check_timeout_check\n");
+	
+    if(!ca1_power_on)
+	{
+		char sendBuf[128] = {0};
 
+		sprintf(sendBuf, "%s", "at CHECKALIVE");
+
+		cli_execute_string(sendBuf);
+
+	}
+}
+
+
+static void Cat1Svr_check_poweron(void)
+{
+	cli_printf("Cat1Svr_check_poweron\n");
+	
+    app_timer_create(&s_cat_check_timing_id, ATIMER_ONE_SHOT, cat1_check_timeout_check);
+    app_timer_start(s_cat_check_timing_id, 15000, NULL);
+}
 
 
 void Cat1Svr_ctor(Cat1Svr * const me) {
@@ -1806,6 +2008,7 @@ void Cat1Svr_ctor(Cat1Svr * const me) {
         me->uart_id = CAT1_UART_ID;
         me->tx_busy = false;
         memset(me->rx_buf, 0, sizeof(me->rx_buf));
+		me->cat1_online = 0;
 }
 
 
@@ -1824,7 +2027,7 @@ void Cat1Svr_init_hw(Cat1Svr * const me) {
     me->tx_buf_info.tx_buf_size = CAT1_RX_BUF_LEN;
 
     // 填充 UART 主参数
-		#ifndef FEATURE_USE_CAT1_SVC
+   #ifndef FEATURE_USE_CAT1_SVC
     me->uart_params.id       = me->uart_id;
     me->uart_params.pin_cfg  = cat1_uart_pins;
     me->uart_params.init     = cat1_uart_cfg;
@@ -1841,7 +2044,7 @@ void Cat1Svr_init_hw(Cat1Svr * const me) {
     // 启动首次异步接收（官方必写）
     app_uart_receive_async(me->uart_id, me->rx_buf, CAT1_RX_BUF_LEN);
     //printf("Cat1Svr UART init ok\r\n");
-		#endif
+   #endif
 }
 
 void Cat1Svr_uart_callback_1(app_uart_evt_t *  p_evt,uint8_t *buf,uint16_t len)
@@ -1850,6 +2053,7 @@ void Cat1Svr_uart_callback_1(app_uart_evt_t *  p_evt,uint8_t *buf,uint16_t len)
 
 
 	#if 1
+	memset(me->rx_buf,0,sizeof(me->rx_buf));
 	memcpy(me->rx_buf,buf,len);
 
 	// 字符串收尾 + 剔除 \r \n
@@ -1890,7 +2094,7 @@ void Cat1Svr_uart_callback_1(app_uart_evt_t *  p_evt,uint8_t *buf,uint16_t len)
 			  memcpy(me->data_content, me->caps[1].ptr, cont_len);
 			  me->data_content[cont_len] = '\0';
 
-			  printf("parse ok: tag=[%.10s], content=[%s]\r\n", me->data_tag, me->data_content);
+			  cli_printf("Cat1Svr_uart_callback parse ok: tag=[%.10s], content=[%s]\r\n", me->data_tag, me->data_content);
 
 		  
 		  if (((strcmp(me->data_tag, "SIP_ENV") == 0 && strcmp(me->data_content, "SIP_APP_MAIN_INCOMING") == 0)||
@@ -1905,7 +2109,7 @@ void Cat1Svr_uart_callback_1(app_uart_evt_t *  p_evt,uint8_t *buf,uint16_t len)
 	    #endif
 			  // 同步分发至内部 QHsm 正交组件
 			  QASM_DISPATCH((QHsm *)&me->sip, &sip_evt, 0);
-
+              yp_business_call_set(YP_CALL_INCOMING);
 		  }
 		  
 		  else if (strcmp(me->data_tag, "NTPSYNC") == 0) {
@@ -1916,7 +2120,7 @@ void Cat1Svr_uart_callback_1(app_uart_evt_t *  p_evt,uint8_t *buf,uint16_t len)
 				  app_rtc_time_t init_rtc_time;
 				  unix_to_rtc_time(init_timestamp, &init_rtc_time);
 				  app_rtc_init_time(&init_rtc_time);
-				  printf("NTPSYNC:[%11u]\n",get_current_unix_timestamp());
+				  cli_printf("NTPSYNC:[%11u]\n",get_current_unix_timestamp());
 			  }
 
 		  }
@@ -1940,6 +2144,7 @@ void Cat1Svr_uart_callback_1(app_uart_evt_t *  p_evt,uint8_t *buf,uint16_t len)
 			  }
 			else if(strncmp(me->data_content, "IMEI",strlen("IMEI")) == 0)
 			{
+				#if 1
 				char *content = me->data_content;
 				char *eq = strchr(content, '=');
 				if (eq == NULL)
@@ -1963,7 +2168,7 @@ void Cat1Svr_uart_callback_1(app_uart_evt_t *  p_evt,uint8_t *buf,uint16_t len)
 						imei_persist();
 					}
 				}
-
+				#endif
 
 			}
 			else if(strncmp(me->data_content, "IMSI",strlen("IMSI")) == 0)
@@ -1972,7 +2177,7 @@ void Cat1Svr_uart_callback_1(app_uart_evt_t *  p_evt,uint8_t *buf,uint16_t len)
 				char *eq = strchr(content, '=');
 				if (eq == NULL)
 				{
-					printf("IMSI parse err: no '='\r\n");
+					cli_printf("IMSI parse err: no '='\r\n");
 				}
 				else
 				{
@@ -1980,7 +2185,7 @@ void Cat1Svr_uart_callback_1(app_uart_evt_t *  p_evt,uint8_t *buf,uint16_t len)
 					int cp_len = (val_len < IMSI_BUF_LEN ) ? val_len : IMSI_BUF_LEN ;
 					memcpy(me->IMSI, eq + 1, cp_len);
 					me->IMSI[cp_len] = '\0';
-					printf("parse IMSI: val_len = %d, IMSI=[%s]\r\n", val_len, me->IMSI);
+					cli_printf("parse IMSI: val_len = %d, IMSI=[%s]\r\n", val_len, me->IMSI);
 				}
 
 
@@ -1998,26 +2203,43 @@ void Cat1Svr_uart_callback_1(app_uart_evt_t *  p_evt,uint8_t *buf,uint16_t len)
 				{
 					me->cat1_register = 1;
 
-					printf("parse REG: net is register\r\n");
+					cli_printf("parse REG: net is register\r\n");
 					
 				}
 			} 
 			else if(strcmp(me->data_content, "POWERON") == 0)
 			{
-				LocaSvr * const this = &LocaSvr_inst;
-				this->locate_type = LOCATE_TYPE_ONLINE;
-				static QEvt online_evt = QEVT_INITIALIZER(ONLINE_STATUS_SIG);
-				QACTIVE_POST(app_state_machine, &online_evt, 0U);
+				cli_printf("cat1_online %d\r\n",me->cat1_online);
+				
+				if(me->cat1_online == 0)
+				{
+					LocaSvr * const this = &LocaSvr_inst;
+					this->locate_type = LOCATE_TYPE_ONLINE;
+					static QEvt online_evt = QEVT_INITIALIZER(ONLINE_STATUS_SIG);
+					QACTIVE_POST(app_state_machine, &online_evt, 0U);
+				}
 
-				yp_scan_sched_init();
+				ca1_power_on = true;
 			}
   		    else 
   		    {
-				printf("parse NET_ENV: not deal %s\r\n",me->data_content);
+				cli_printf("parse NET_ENV: not deal %s\r\n",me->data_content);
   		    }
 
 		  }
-		  
+		  else if (strcmp(me->data_tag, "CHECKALIVE") == 0)
+	  	  {
+			if(strcmp(me->data_content, "ALIVE") == 0)
+			{
+				char sendBuf[128] = {0};
+			
+				sprintf(sendBuf, "%s", "at NTPGET");
+			
+				cli_execute_string(sendBuf);			
+				ca1_power_on = true;
+			}
+
+	  	  }
 		  else if (strcmp(me->data_tag, "MQTTS_EVT") == 0) {
 			  ////printf("me->data_content[%s]\n",me->data_content);
 			  // 假设 me->data_content 包含 "/iotplat/...,{...}"
@@ -2102,7 +2324,7 @@ void Cat1Svr_uart_callback_1(app_uart_evt_t *  p_evt,uint8_t *buf,uint16_t len)
 			  QASM_DISPATCH((QHsm *)&me->sip, &startInit, 0);
 			  (void)QTimeEvt_disarm(&me->sipInitEvt);
 			  #endif	
-
+              yp_business_call_set(YP_CALL_DIALING);
 		  }
 		  
 		  else if (((strcmp(me->data_tag, "SIP_ENV") == 0 && strcmp(me->data_content, "SIP_APP_MAIN_DISCONNECTED") == 0)||
@@ -2119,6 +2341,8 @@ void Cat1Svr_uart_callback_1(app_uart_evt_t *  p_evt,uint8_t *buf,uint16_t len)
 		 	#ifndef FEATURE_SIP_INIT_FOREVER
 			  cli_execute_string("at SIP_DEINIT");
 			#endif
+              yp_business_call_set(YP_CALL_ENDED);
+			  //yp_business_cancel_alarm();	
 		  }
 		  
 		  else if ((strcmp(me->data_tag, "CC_ENV") == 0 && strcmp(me->data_content, "MAKE_CALL_OK") == 0)) {
@@ -2144,25 +2368,39 @@ void Cat1Svr_uart_callback_1(app_uart_evt_t *  p_evt,uint8_t *buf,uint16_t len)
 	    #else
 	 		  QEvt const sip_evt = QEVT_INITIALIZER(CC_SPEECH_START_SIG);
 	 		  QASM_DISPATCH((QHsm *)&me->sip, &sip_evt, 0);
-
 	    #endif
-
+              yp_business_call_set(YP_CALL_CONNECTED);
 		  }
 		  
 		  else if (strcmp(me->data_tag, "MQTT_SEND=") == 0) {
-			  
-			  if (strcmp(me->data_content, "OK") == 0) {
-				  QEvt *e = Q_NEW(QEvt, MQTT_SEND_OK_SIG);
-				  if (e != NULL) {
-					  QACTIVE_POST(app_state_machine, e, (void*)0);
-				  }
-				  printf("MQTT send ok");
-
+			  if (strstr(me->data_content, "onlineMsg") != NULL)
+			  {
+				  cli_printf("recv onlineMsg cnf\n");
+				  // TODO
+				  me->cat1_online = 1;
 			  }
-			  
-			  else {
-				  printf("MQTT send ko:%s",me->data_content);
-
+			  else if (strstr(me->data_content, "offlineMsg") != NULL)
+			  {
+				  // TO DO , POWEROFF CAT1
+				  cli_printf("rev offlineMsg cnf\n");
+				  me->cat1_online = 0;
+				  cli_execute_string("cat1_power off");
+			  }
+			  else 
+			  {
+	 			  if (strcmp(me->data_content, "OK") == 0) {
+	 				  QEvt *e = Q_NEW(QEvt, MQTT_SEND_OK_SIG);
+	 				  if (e != NULL) {
+	 					  QACTIVE_POST(app_state_machine, e, (void*)0);
+	 				  }
+	 				  cli_printf("MQTT send ok");
+	 
+	 			  }
+	 			  
+	 			  else {
+	 				  cli_printf("MQTT send ko:%s",me->data_content);
+	 
+	 			  }
 			  }
 		  }
 		  else if (strcmp(me->data_tag, "LBS_RESULT") == 0) {
@@ -2177,10 +2415,10 @@ void Cat1Svr_uart_callback_1(app_uart_evt_t *  p_evt,uint8_t *buf,uint16_t len)
 				  uint16_t len = strlen(me->data_content) + 1;
 				  if(this->scan_result != NULL)
 			  	  {
-					  free(this->scan_result);
+					  cat_free(this->scan_result);
 					  this->scan_result = NULL;
 			  	  }		  
-				  this->scan_result = (char *)malloc(len);
+				  this->scan_result = (char *)cat_malloc(len);
 				  memcpy(this->scan_result,me->data_content,len);
 
 				  this->LBSData = 1;  
@@ -2201,10 +2439,10 @@ void Cat1Svr_uart_callback_1(app_uart_evt_t *  p_evt,uint8_t *buf,uint16_t len)
 				  uint16_t len = strlen(me->data_content) + 1;
 				  if(this->scan_result != NULL)
 			  	  {
-					  free(this->scan_result);
+					  cat_free(this->scan_result);
 					  this->scan_result = NULL;
 			  	  }
-				  this->scan_result = (char *)malloc(len);
+				  this->scan_result = (char *)cat_malloc(len);
 				  memcpy(this->scan_result,me->data_content,len);
 				  this->WIFIData = 1;
 					  
@@ -2229,10 +2467,10 @@ void Cat1Svr_uart_callback_1(app_uart_evt_t *  p_evt,uint8_t *buf,uint16_t len)
 				  uint16_t len = strlen(me->data_content) + 1;
 				  if(this->scan_result != NULL)
 			  	  {
-					  free(this->scan_result);
+					  cat_free(this->scan_result);
 					  this->scan_result = NULL;
 			  	  }				  
-				  this->scan_result = (char *)malloc(len);
+				  this->scan_result = (char *)cat_malloc(len);
 				  memcpy(this->scan_result,me->data_content,len);
 				  this->GPSData = 1;
 					  
@@ -2389,6 +2627,14 @@ uart_handle_t *  Cat1Svr_get_handle(Cat1Svr * const me) {
 /* SAM | 2026-10-10 18:07 +08:00 | Separate rail control from manual PWRKEY because USB flashing must not trigger UART probes. */
 int Cat1Svr_power(int argc, char *argv[])
 {
+	static int init = 0;
+
+	if(init == 0)
+	{
+		Cat1Svr_check_poweron();
+		init = 1;
+	}
+	
     return cat1_debug_power(argc, argv);
 }
 
@@ -2417,7 +2663,8 @@ QState Cat1Svr_power_on(Cat1Svr * const me, QEvt const * const e) {
     switch (e->sig) {
         
         case Q_ENTRY_SIG: {
-            cli_execute_string("cat1_power reset");
+			cli_printf("Cat1Svr_power_on enter");
+            //cli_execute_string("cat1_power reset");
             QTimeEvt_armX(&me->timeEvt, 5 * 60U * BSP_TICKS_PER_SEC, 0U);//设置cat1进入低功耗时间
             //printf("cat1_power on");
             status_ = Q_HANDLED();
@@ -2425,8 +2672,8 @@ QState Cat1Svr_power_on(Cat1Svr * const me, QEvt const * const e) {
         }
         
         case Q_EXIT_SIG: {
-
-            cli_execute_string("cat1_power off");
+			cli_printf("Cat1Svr_power_on exit");
+            //cli_execute_string("cat1_power off");
             (void)QTimeEvt_disarm(&me->timeEvt);
             //printf("cat1_power off");
             status_ = Q_HANDLED();
@@ -2457,8 +2704,7 @@ QState Cat1Svr_power_on(Cat1Svr * const me, QEvt const * const e) {
         
         case CAT1_TIMEOUT_SIG: {
             /* SAM | 2026-10-30 22:52 +08:00 | An OTA in flight must keep CAT1 powered; retry the low-power decision later instead of cutting power. */
-            /* SAM | 2026-11-06 +08:00 | Factory hold also postpones the normal CAT1 idle shutdown. */
-            if (yp001_cat1_factory_hold_active() || !yp001_ota_power_change_allowed()) {
+            if (!yp001_ota_power_change_allowed()) {
                 QTimeEvt_armX(&me->timeEvt, 60U * BSP_TICKS_PER_SEC, 0U);
                 status_ = Q_HANDLED();
                 break;
@@ -2502,7 +2748,7 @@ QState Cat1Svr_power_on(Cat1Svr * const me, QEvt const * const e) {
                     memcpy(me->data_content, me->caps[1].ptr, cont_len);
                     me->data_content[cont_len] = '\0';
 
-                    printf("parse ok: tag=[%.10s], content=[%s]\r\n", me->data_tag, me->data_content);
+                    cli_printf("parse ok: tag=[%.10s], content=[%s]\r\n", me->data_tag, me->data_content);
 
                 
                 if (((strcmp(me->data_tag, "SIP_ENV") == 0 && strcmp(me->data_content, "SIP_APP_MAIN_INCOMING") == 0)||
@@ -2752,7 +2998,7 @@ QState Cat1Svr_power_on(Cat1Svr * const me, QEvt const * const e) {
                 else if (strcmp(me->data_tag, "LBS_RESULT") == 0) {
 					LocaSvr * const this = &LocaSvr_inst;
 					uint16_t len = strlen(me->data_content) + 1;
-					this->scan_result = (char *)malloc(len);
+					this->scan_result = (char *)cat_malloc(len);
 					memcpy(this->scan_result,me->data_content,len);
 
 					this->LBSData = 1;	
@@ -2769,7 +3015,7 @@ QState Cat1Svr_power_on(Cat1Svr * const me, QEvt const * const e) {
 					{
 						
 						uint16_t len = strlen(me->data_content) + 1;
-						this->scan_result = (char *)malloc(len);
+						this->scan_result = (char *)cat_malloc(len);
 						memcpy(this->scan_result,me->data_content,len);
 						this->WIFIData = 1;
 							
@@ -2828,14 +3074,14 @@ QState Cat1Svr_power_off(Cat1Svr * const me, QEvt const * const e) {
     switch (e->sig) {
         
         case Q_ENTRY_SIG: {
-            //printf("power_off in\n");
+            cli_printf("power_off in\n");
             //cli_execute_string("at at");
             status_ = Q_HANDLED();
             break;
         }
         
         case Q_EXIT_SIG: {
-            //printf("power_off out\n");
+            cli_printf("power_off out\n");
             status_ = Q_HANDLED();
             break;
         }

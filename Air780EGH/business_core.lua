@@ -150,7 +150,8 @@ function M.new(port)
         local imei=port.imei()
         if type(imei)=="string" and imei:match("^%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d$") then
             -- SAM | 2026-10-23 20:18 +08:00 | Internal UART hello carries actual compiled identities; absent metadata remains unknown, never a package-label fallback.
-            local hello={op="hello",imei=imei,alarm_active=state.alarm_active,alarm_id=state.alarm_id}
+            -- SAM | 2026-11-07 +08:00 | Send the committed phone snapshot on resync so GR never dials a test default.
+            local hello={op="hello",imei=imei,alarm_active=state.alarm_active,alarm_id=state.alarm_id,call_out=state.call_out or ""}
             if type(port.product_version)=="function" and type(port.build)=="function" then
                 hello.component_version=port.version();hello.product_build_version=port.product_version();hello.build=port.build()
             end
@@ -319,7 +320,11 @@ function M.new(port)
             next_state.phone_seq=(state.phone_seq or 0)+1
             next_state.phone_reply={CmdType=message.CmdType,Result=result,seq=next_state.phone_seq}
             local ok,why=save(next_state); if not ok then notice(why) end
-            if ok then send_phone_reply() end
+            if ok then
+                -- SAM | 2026-11-07 +08:00 | Mirror only durable success; retain the existing unique platform reply owner.
+                emit({op="phone_bind",call_out=state.call_out or ""})
+                send_phone_reply()
+            end
             return true
         end
         if message.MsgType=="paraSetMsg" then notice("PARAMETERS_NOT_READY"); return true end

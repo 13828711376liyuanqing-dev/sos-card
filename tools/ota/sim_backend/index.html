@@ -1,0 +1,30 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OTA 本地模拟测试后台</title>
+<style>body{font:16px system-ui;margin:40px auto;max-width:1000px;padding:0 20px;background:#f4f6fa;color:#182337}section{background:white;padding:24px;border-radius:12px;margin:20px 0}label{display:block;padding:8px}button{padding:12px 24px;background:#215ac5;color:white;border:0;border-radius:6px;cursor:pointer}button:disabled{opacity:.5}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}summary{padding:12px;cursor:pointer}.note{color:#805100}</style>
+<h1>OTA 本地模拟测试后台</h1><p class="note">仅验证主机软件流程。不会连接设备、烧录固件或开放生产 OTA；签名与设备接口使用测试桩。</p>
+<section><h2>固件上传与版本打包</h2><p>归档包含原始固件、版本清单、测试签名和公钥。尚未通过芯片安装准入的包仅供传输测试。</p>
+<label>组件 <select id="component"><option>GR5526</option><option>CAT1</option></select></label>
+<p class="note">填写版本不会修改固件内版本。当前归档记录操作员标签，未校验芯片内版本，不作为升级成功依据。</p>
+<label>源版本 <input id="sourceVersion" placeholder="例如 001.000.000" required></label>
+<label>目标版本 <input id="targetVersion" placeholder="例如 001.000.001" required></label>
+<label>输入格式 <select id="packageType"><option>HEX</option><option>BIN</option><option>GOODIX_SIGNED</option><option>LUATOS_FOTA</option><option>SOC</option></select></label>
+<label>固件文件 <input type="file" id="firmware"></label><button id="upload">上传并生成版本包</button>
+<p id="uploadStatus" role="status"></p><div id="releaseList"></div></section>
+<section><h2>选择测试组</h2><div id="suites"></div><button id="run">运行所选测试</button><p id="status" role="status">正在读取状态…</p></section>
+<section><h2>测试结果</h2><p id="path"></p><div id="results">尚未运行</div></section>
+<script>
+// SAM | 2026-10-21 +08:00 | Render test output as text, and prevent duplicate runs.
+// SAM | 2026-10-21 +08:00 | Preserve expanded logs across polling; redraw only when report identity changes.
+const token='__TOKEN__';let loaded=false,renderedReport=null;
+async function refresh(){try{const r=await fetch('/api/status');if(!r.ok)throw Error('读取失败');const s=await r.json();
+if(!loaded){for(const [id,title] of Object.entries(s.suites)){const label=document.createElement('label');const cb=document.createElement('input');cb.type='checkbox';cb.value=id;cb.checked=true;label.append(cb,document.createTextNode(' '+title));document.querySelector('#suites').append(label)}loaded=true}
+document.querySelector('#run').disabled=s.running;document.querySelector('#status').textContent=s.running?'测试运行中，请等待结果…':s.error||'就绪';
+if(s.report){document.querySelector('#status').textContent=s.report.passed?'所选主机测试通过（非实板验收）':'存在失败，请查看日志';document.querySelector('#path').textContent='报告目录：'+s.report.directory;if(renderedReport!==s.report.directory){renderedReport=s.report.directory;const area=document.querySelector('#results');area.replaceChildren();for(const x of s.report.results){const d=document.createElement('details'),h=document.createElement('summary'),p=document.createElement('pre');h.textContent=(x.passed?'通过：':'失败：')+x.title;p.textContent=x.log;d.append(h,p);area.append(d)}}}
+}catch(e){document.querySelector('#status').textContent='后台连接失败：'+e.message}}
+document.querySelector('#run').onclick=async()=>{const suites=[...document.querySelectorAll('input:checked')].map(x=>x.value);if(!suites.length){document.querySelector('#status').textContent='请至少选择一组';return}document.querySelector('#run').disabled=true;try{const r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json','X-OTA-Token':token},body:JSON.stringify({suites})});if(!r.ok)throw Error('请求失败 '+r.status);renderedReport=null;document.querySelector('#path').textContent='';document.querySelector('#results').textContent='正在运行…';await refresh()}catch(e){document.querySelector('#status').textContent=e.message;document.querySelector('#run').disabled=false}};
+refresh();setInterval(refresh,2000);
+// SAM | 2026-10-21 +08:00 | Package user-selected bytes with explicit versions; never imply device installation readiness.
+async function loadReleases(){const response=await fetch('/api/releases');if(!response.ok)throw Error('读取归档失败');const list=await response.json();const box=document.querySelector('#releaseList');box.replaceChildren();for(const x of list){const row=document.createElement('p');row.append(document.createTextNode(x.target+' '+x.source_version+' → '+x.version+' / '+x.package_type+' / '+x.bytes+' 字节 / 仅传输测试 '));const a=document.createElement('a');a.href='/packages/'+x.id;a.textContent='下载版本包';row.append(a);box.append(row)}}
+document.querySelector('#upload').onclick=async()=>{const button=document.querySelector('#upload'),status=document.querySelector('#uploadStatus');const file=document.querySelector('#firmware').files[0];if(!file){status.textContent='请选择固件文件';return}if(file.size===0||file.size>16777216){status.textContent='文件为空或超过16MiB';return}button.disabled=true;status.textContent='正在上传及验证归档…';try{const response=await fetch('/api/upload',{method:'POST',headers:{'X-OTA-Token':token,'X-Component':document.querySelector('#component').value,'X-Source-Version':document.querySelector('#sourceVersion').value,'X-Target-Version':document.querySelector('#targetVersion').value,'X-Package-Type':document.querySelector('#packageType').value},body:file});const result=await response.json();if(!response.ok)throw Error(result.error||'上传失败');status.textContent='版本包已生成，签名读回验证通过；尚未批准设备安装。';await loadReleases()}catch(e){status.textContent=e.message}finally{button.disabled=false}};
+loadReleases().catch(e=>document.querySelector('#uploadStatus').textContent=e.message);
+</script></html>

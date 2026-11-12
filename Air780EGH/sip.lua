@@ -321,8 +321,8 @@ local function start_task()
     sys.publish("SIP_APP_MAIN_STARTING")
     sys.taskInitEx(sip_app_main_task_func, TASK_NAME)
     log.info("sip", "08")
-    tts.init()
-    tts.play("[m53]" .. "sip init ok")
+    --tts.init()
+    --tts.play("[m53]" .. "sip init ok")
     return true
 end
 local function stop_task_async()
@@ -373,9 +373,9 @@ _G.at_cmd_handlers["SIP_DIAL"] = function(cmd, uart_send)
         uart_send("ERROR: SIP not initialized")
         return
     end
-    local number = cmd and cmd:match("SIP_DIAL=(.+)") or "10004"
+    local number = cmd and cmd:match("SIP_DIAL=(.+)") or "110119"
     if not number or number == "" then
-        number = "10004"
+        number = "110119"
     end
     sys.sendMsg(TASK_NAME, "at", "MSG_DIAL", number)
     uart_send("OK")

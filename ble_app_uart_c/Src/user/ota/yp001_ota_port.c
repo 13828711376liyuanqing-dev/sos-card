@@ -238,7 +238,7 @@ bool yp001_ota_port_progress_load(const yp001_ota_record *owner,uint32_t *total,
     return *total>=8u+YP_OTA_SIGNATURE_BYTES && *total<=YP_OTA_SLOT_BYTES && *durable<=*total &&
         (*durable==*total || *durable%OTA_PAGE_SIZE==0);
 }
-/* SAM | 2026-10-23 +08:00 | Bind measured battery/charge, fresh keys/motion and actual peer/call state; all unknowns deny. */
+/* SAM | 2026-11-07 +08:00 | OTA ignores control activity while measured power and actual alarm/call/link state retain independent safety gates. */
 void yp001_ota_port_gates(yp001_ota_gates *gates)
 {
     const yp_business_status_t *s=yp_business_status();yp_business_ota_inputs_t inputs;

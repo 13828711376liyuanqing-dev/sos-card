@@ -1,0 +1,9 @@
+{
+  "version": "0.20.0",
+  "source_url": "https://codeberg.org/mergiraf/mergiraf/releases/download/v0.20.0/mergiraf_x86_64-pc-windows-gnu.zip",
+  "release_url": "https://codeberg.org/mergiraf/mergiraf/releases/tag/v0.20.0",
+  "archive_bytes": 7191953,
+  "archive_sha256": "4f5e77e973febda3cacd2b52f0c0b2756854e2bff1377af69159cf0aa4051397",
+  "exe_sha256": "05fae92dae2ad8dfaa03071ec5b7825d5d4c901bd6d69dd59604724b9e795ca1",
+  "integrity_scope": "local download hash and upstream asset size; upstream checksum not published in release asset listing"
+}

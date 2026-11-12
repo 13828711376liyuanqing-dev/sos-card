@@ -1,8 +1,10 @@
 import os  # SAM | 2026-11-04 +08:00 | GR CLI port from YP_GR_PORT (bench board moved to COM30), default COM26
-# Power CAT1 up on COM26, wait until it is settled (cat1wait.settle), then run GR CLI commands.
+# Power CAT1 up on the GR port (auto-detected, or --env YP_GR_PORT), wait until it is settled (cat1wait.settle), then run GR CLI commands.
 # Usage: boot_then.py <log> [--no-reset] "cmd1" "cmd2" ...   (each command gets 10 s)
 import sys, time, serial
 from cat1wait import settle
+sys.path.insert(0, __import__('os').path.join(__import__('os').path.dirname(__import__('os').path.abspath(__file__)), '..'))
+from gr_port import pick  # SAM | 2026-11-09 | the COM number changes: never hard-coded
 log = open(sys.argv[1], 'w', encoding='utf-8')
 args = sys.argv[2:]
 reset = True
@@ -24,7 +26,7 @@ def pump(s, sec, until=None, count=1):
     return False
 
 
-with serial.Serial(os.environ.get('YP_GR_PORT', 'COM26'), 115200, timeout=0.1) as s:
+with serial.Serial(pick(), 115200, timeout=0.1) as s:
     time.sleep(0.3); s.read(65536)
     if reset:
         s.write(b'cat1_power reset\r\n')

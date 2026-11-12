@@ -1,6 +1,5 @@
 /* SAM | 2026-10-13 08:40 +08:00 | F-001/F-002/F-013/F-022/F-023: own application state on GR because network/call/UI acknowledgements are different evidence. */
 #include "yp001_business.h"
-#include "yp001_key_call.h"
 #include "cJSON.h"
 #include "gr55xx_nvds.h"
 #include "gr55xx.h"
@@ -8,11 +7,16 @@
 #include <string.h>
 #include "AOs.h"
 #include "yp_name_glyphs.h"
+#include "yp001_key_call.h"
 #include <stdlib.h>
+#include "../cli.h"
 
-#define TEST_DATA  1
+#define TEST_DATA  0
 #define YP_NVDS_TAG_IMEI NV_TAG_APP(0x0001)
 #define YP_NVDS_TAG_RESIDENT NV_TAG_APP(0x0002)
+#define YP_NVDS_TAG_CONFIG NV_TAG_APP(0x0003)
+#define YP_NVDS_TAG_ADDRESS NV_TAG_APP(0x0004)
+
 #define KEY_IDLE_MS 0xFFFFFFFFU
 
 typedef struct { char name[64]; char room[64]; char campus[96]; } yp_resident_nv_t;
@@ -21,8 +25,6 @@ static yp_business_status_t s;
 /* SAM | 2026-11-03 +08:00 | Resident name push transaction; last_seq is restored from NVDS at init. */
 static struct { uint32_t id, seq, last_seq; char name[64], room[64], campus[96]; bool open; } name_txn;
 static bool alarm_pending, cancel_pending, battery_pending, hello_due;
-/* SAM | 2026-11-04 +08:00 | Retry queue admission, never a successfully queued QP dial. */
-static bool sos_start_due, sos_started, sos_stop_due, sos_stop_waiting;
 /* SAM | 2026-11-03 +08:00 | Set once yp_business_init() has restored NVDS; battery samples can arrive earlier during BSP_start. */
 static bool s_inited;
 static uint32_t last_hello, last_rx, last_alarm, last_cancel, clock_ms;
@@ -42,6 +44,9 @@ static void peer_changed(uint32_t source)
 }
 /* SAM | 2026-10-23 20:18 +08:00 | Keep measured CAT source identity separate from GR and expire it even when other UART traffic continues. */
 static char cat_product_version[12];
+/* SAM | 2026-11-07 +08:00 | RAM projection of CAT1 durable phone configuration; never writes NVDS or changes the owner. */
+static char platform_call_out[33];
+static bool platform_call_out_known;
 static uint32_t cat_version_ms;
 static bool version_text(const char *v)
 {
@@ -62,11 +67,11 @@ bool yp_business_cat_version(char *version,size_t capacity)
        (uint32_t)(s.now_ms-cat_version_ms)>20000u||capacity<n)return false;
     memcpy(version,cat_product_version,n);return true;
 }
-static bool alarm_sent, cancel_sent;
+
 /* Written only by the 10ms sampler, consumed in foreground; aligned 32-bit
  * sequence avoids losing an edge when the foreground consumes a request. */
-static volatile uint32_t key_requests;
-static uint32_t consumed_keys;
+static volatile uint32_t sos_requests;
+static uint32_t consumed_sos;
 static char s_key_buf[YP_KEY_BUF_SIZE + 1];
 static uint32_t s_last_release_ms = KEY_IDLE_MS; /* last tap release time */
 static volatile bool s_key_settle_req;           /* chord ready for the UI */
@@ -83,7 +88,7 @@ static bool s_motion_saw_activity;
 /* SAM | 2026-10-13 08:55 +08:00 | Sequence mailbox avoids losing ISR writes during foreground read/clear. */
 static volatile uint32_t call_request;
 static uint32_t consumed_call;
-/* SAM | 2026-10-23 +08:00 | Conservative local OTA qualification: fresh measurements and 60s continuous quiet; no platform-configurable bypass. */
+/* SAM | 2026-10-23 +08:00 | Retain observation timestamps and control-state evidence for diagnosis; OTA qualification uses actual fresh power. */
 static volatile bool ota_keys_seen,ota_key_down;
 static volatile uint32_t ota_keys_ms;
 static bool ota_battery_seen,ota_motion_seen,ota_moving;
@@ -133,7 +138,7 @@ void imei_persist(void)
     if (nvds_get(YP_NVDS_TAG_IMEI, &len, old) == NVDS_SUCCESS &&
         len == IMEI_BUF_LEN && memcmp(old, s.imei, sizeof(old)) == 0) return;
     err = nvds_put(YP_NVDS_TAG_IMEI, strlen(s.imei), (const uint8_t *)s.imei);
-	printf("imei_persist IMEI = %s,err = %d",s.imei,err);
+	cli_printf("imei_persist IMEI = %s,err = %d \n",s.imei,err);
 }
 
 static void imei_restore(void)
@@ -142,12 +147,11 @@ static void imei_restore(void)
     uint8_t buf[16] = {0};
 	uint8_t err = 0;
 	err = nvds_get(YP_NVDS_TAG_IMEI, &len, buf);
-	printf("imei_restore err = %d",err);
     if (err != NVDS_SUCCESS)
 	{
 		return;
 	}
-	printf("imei_restore IMEI = %s",buf);
+	cli_printf("imei_restore IMEI = %s\n",buf);
     if (len != IMEI_BUF_LEN || !valid_imei((const char *)buf)) return;
     if (!s.imei_known || strcmp(s.imei, (const char *)buf)) {
         memcpy(s.imei, buf, sizeof(buf));
@@ -155,6 +159,55 @@ static void imei_restore(void)
         changed();
     }
 }
+
+/* SAM | 2026-11-08 20:30 +08:00 | OTA protection: NVDS (Flash) writes are not allowed while a transaction owns Flash/UART; the platform may resend after the OTA. */
+extern bool yp001_ota_power_change_allowed(void);
+void config_save(void)
+{
+	if (!yp001_ota_power_change_allowed()) { cli_printf("config_save skipped during protected update\n"); return; }
+	uint8_t err = 0;
+	uint16_t len = sizeof(ParaConfig_t);
+	
+    err = nvds_put(YP_NVDS_TAG_CONFIG, len, (const uint8_t *)&g_config);
+	cli_printf("config_save ,err = %d\n",err);
+
+}
+
+static void config_read(void)
+{
+    uint16_t len = sizeof(ParaConfig_t);
+	uint8_t err = 0;
+
+	err = nvds_get(YP_NVDS_TAG_CONFIG, &len, (const uint8_t *)&g_config);
+	
+	cli_printf("config_read err = %d\n",err);
+
+
+}
+
+void call_address_save(void)
+{
+	if (!yp001_ota_power_change_allowed()) { cli_printf("call_address_save skipped during protected update\n"); return; }
+	uint8_t err = 0;
+	uint16_t len = sizeof(ParaBindMsg_t);
+	
+    err = nvds_put(YP_NVDS_TAG_ADDRESS, len, (const uint8_t *)&g_bind_msg);
+	cli_printf("call_address_save ,err = %d\n",err);
+
+}
+
+static void call_address_read(void)
+{
+    uint16_t len = sizeof(ParaBindMsg_t);
+	uint8_t err = 0;
+
+	err = nvds_get(YP_NVDS_TAG_ADDRESS, &len, (const uint8_t *)&g_bind_msg);
+	
+	cli_printf("call_address_read err = %d\n",err);
+
+
+}
+
 
 static void resident_persist(void)
 {
@@ -187,14 +240,12 @@ static void resident_restore(void)
     s.resident_known = true;
     changed();
 }
-/* SAM | 2026-11-04 +08:00 | Keep alarm ID/ACK synchronization while suppressing the legacy CAT1 dial. */
 static bool send(const char *op, uint32_t id) {
     char line[160];
 
     int n = snprintf(line, sizeof(line),
-        "BUS_CMD={\"op\":\"%s\",\"id\":%lu,\"known\":%s,\"battery\":%u%s}\r\n",
-        op, (unsigned long)id, s.battery_known ? "true":"false", s.battery_percent,
-        !strcmp(op,"alarm") ? ",\"dial\":false" : "");
+        "BUS_CMD={\"op\":\"%s\",\"id\":%lu,\"known\":%s,\"battery\":%u}\r\n",
+        op, (unsigned long)id, s.battery_known ? "true":"false", s.battery_percent);
     return n > 0 && (size_t)n < sizeof(line) && yp_business_port_send(line,(size_t)n);
 }
 /* No libc timezone dependency: customer local screen time is UTC+08:00;
@@ -226,16 +277,16 @@ static void format_clock(void) {
     }
 }
 void yp_business_init(void) {
+    platform_call_out[0]=0; platform_call_out_known=false;
     memset(&s,0,sizeof(s)); s.show_time=true; s.revision=1; s.call=YP_CALL_UNKNOWN;
     /* SAM | 2026-10-25 +08:00 | A new runtime cannot inherit peer provenance from an earlier session. */
     memset(&peer_history,0,sizeof peer_history);
     /* SAM | 2026-10-23 20:18 +08:00 | Reinitialization cannot retain a previous CAT session's identity. */
     cat_product_version[0]=0;cat_version_ms=0;
-    alarm_pending=cancel_pending=battery_pending=alarm_sent=cancel_sent=false;
-    /* SAM | 2026-11-04 +08:00 | Reinitialize the QP admission/cancellation mailbox with business state. */
-    sos_start_due=sos_started=sos_stop_due=sos_stop_waiting=false;
+    alarm_pending=cancel_pending=battery_pending=false;
     hello_due=true; last_hello=last_rx=last_alarm=clock_ms=0;
-    key_requests=consumed_keys=0; call_request=consumed_call=0; last_cancel=0;
+    sos_requests=consumed_sos=0; last_cancel=0;
+    sos_segment_latched=false;
     s_left_ms=s_right_ms=sos_ms=KEY_IDLE_MS;
     /* SAM | 2026-11-07 11:39 +08:00 | Clear the chord latch with the key sampler at initialization. */
     sos_segment_latched=false;
@@ -248,6 +299,8 @@ void yp_business_init(void) {
     /* SAM | 2026-11-03 +08:00 | Restore the stored name glyphs; their Seq is the floor for later pushes. */
     { uint32_t seq=0; if (yp_ng_load(&seq)) name_txn.last_seq=seq; }
     s_inited=true;
+	config_read();
+	call_address_read();
 }
 const yp_business_status_t *yp_business_status(void) { return &s; }
 void yp_business_keys(bool left, bool right, uint32_t now) {
@@ -269,7 +322,8 @@ void yp_business_keys(bool left, bool right, uint32_t now) {
     }
 
     /* SAM | 2026-11-06 +08:00 | Call keys (user requirement): incoming + one press (left or right) = answer; dialing or connected +
-     * one press = hang up. Uses the existing UART call path (call_request -> BUS_CMD accept/hangup -> CAT1 SIP). */
+     * one press = hang up. Uses the existing UART call path (call_request -> BUS_CMD accept/hangup -> CAT1 SIP).
+     * SAM | 2026-11-08 20:30 +08:00 | Re-added after the colleague merge dropped it. */
     {
         yp_keycall_action_t act=yp_keycall_step(&s_keycall,left,right,now,
             s.call==YP_CALL_INCOMING,s.call==YP_CALL_DIALING||s.call==YP_CALL_CONNECTED);
@@ -291,8 +345,12 @@ void yp_business_keys(bool left, bool right, uint32_t now) {
                                  (s_left_ms - s_right_ms) : (s_right_ms - s_left_ms);
             if (press_lag <= UI_SOS_LAG_MS) {
                 if (sos_ms == KEY_IDLE_MS) sos_ms = now;
-                else if (!sos_segment_latched && (uint32_t)(now - sos_ms) >= 2800U) {
-                    sos_segment_latched = true; ++key_requests;
+                else if ((uint32_t)(now - sos_ms) >= 2800U) {
+                    sos_ms = KEY_IDLE_MS;
+                    if (!sos_segment_latched) {
+                        sos_segment_latched = true;
+                        ++sos_requests;
+                    }
                 }
             } else {
                 sos_ms = KEY_IDLE_MS;
@@ -359,34 +417,48 @@ bool yp_business_take_sequence(char *buf, size_t cap)
     __enable_irq();
     return got;
 }
-/* SAM | 2026-11-04 +08:00 | QP owns the call; CAT1 alarm frames only persist state and publish SOS. */
 bool yp_business_start_alarm(void) {
-    if (s.alarm_active || sos_stop_due || sos_stop_waiting) return false;
+    if (s.alarm_active) return false;
     s.alarm_active=true; s.alarm_id=0; s.sleeping=false;
-    alarm_pending=true; alarm_sent=false;
-    sos_start_due=true; sos_started=false;
+    alarm_pending=true;
+    cancel_pending=false;
     notice("ALARM PENDING"); changed();
+	start_sos_process(true);
     return true;
-}
-bool yp_business_sos_start_allowed(void) {
-    return s.alarm_active && !cancel_pending;
-}
-/* SAM | 2026-11-04 +08:00 | Drain the previous QP stop before a new alarm can reuse queued start events. */
-void yp_business_sos_stopped(void) {
-    sos_stop_waiting=false;
 }
 void yp_business_cancel_alarm(void) {
     if (s.alarm_active && !cancel_pending) {
-        cancel_pending=true; cancel_sent=false;
-        sos_start_due=false; sos_stop_due=sos_started;
-        /* SAM | 2026-11-04 +08:00 | Keep alarm active until the matching durable CAT1 cancellation arrives. */
-        notice("ALARM CANCELLING"); changed();
+        cancel_pending=true;
+        s.alarm_active=false;
+        yp_business_call_set(YP_CALL_ENDED);
+        changed();
+        start_sos_process(false);
     }
 }
 /* SAM | 2026-11-07 11:57 +08:00 | Share QP and CAT1 display state updates because call completion must preserve the alarm. */
-void yp_business_call_set(yp_call_t state) {
-    if (s.call != state) { s.call=state; changed(); }
+/* SAM | 2026-11-07 +08:00 | Accept the CAT1 3..32 character contract without truncating existing stored numbers; empty explicitly clears. */
+bool yp_business_call_out_set(const char *number)
+{
+    size_t length=0U;
+    if (number==NULL) return false;
+    while (length<sizeof(platform_call_out) && number[length]!=0) ++length;
+    if (length==sizeof(platform_call_out) || (length>0U && length<3U)) return false;
+    for (size_t i=0U;i<length;++i) {
+        if (i==0U && number[i]=='+') continue;
+        if (number[i]<'0' || number[i]>'9') return false;
+    }
+    platform_call_out_known=true;
+    if (strcmp(platform_call_out,number)!=0) {
+        memcpy(platform_call_out,number,length+1U);
+        changed();
+    }
+    return true;
 }
+const char *yp_business_call_out(void) { return platform_call_out; }
+/* SAM | 2026-11-07 +08:00 | An old CAT1 without snapshots retains its existing dial behavior during GR-first OTA. */
+bool yp_business_call_out_known(void) { return platform_call_out_known; }
+
+/* SAM | 2026-11-08 20:30 +08:00 | Colleague version of yp_business_call_set kept (call end/failed clears the alarm); our 11-07 duplicate removed after the merge. */
 void yp_business_call_action(bool accept) { call_request=((call_request+4U)&~3U)|(accept ? 1U:2U); }
 void yp_business_show_time(bool enabled) {
     if (s.show_time != enabled) { s.show_time=enabled; changed(); }
@@ -400,15 +472,28 @@ bool yp_business_set_resident(const char *name,const char *room,const char *camp
     resident_persist();
     return true;
 }
+
+void yp_business_call_set(yp_call_t state) {
+    if (s.call != state) {
+        if (state == YP_CALL_ENDED || state == YP_CALL_FAILED) {
+            s.alarm_active = false;
+        }
+        s.call = state; 
+        changed();
+    }
+}
+
 void yp_business_battery(bool known,uint8_t percent,bool charging) {
     ota_battery_seen=true;ota_battery_ms=s.now_ms;
     known=known && percent<=100U;
-    /* SAM | 2026-11-07 07:08 +08:00 | Keep measured battery validity/percent because OTA gates share this state, including TEST_DATA builds. */
-#ifdef TEST_DATA
-    strcpy(s.imei, "860123456789024");
-    strcpy(s.date, "2026-10-18");
-    strcpy(s.clock, "10:28");
-    strcpy(s.weekday, "SUN");
+/* SAM | 2026-11-11 +08:00 | Production fix: "#define TEST_DATA 0" with #ifdef still compiled the test block (fake battery known/80%, IMEI/time known, test name) into every build and bypassed the OTA battery gate. Use #if so 0 really disables it. */
+#if TEST_DATA
+    known = true;
+    percent = 80;
+    //strcpy(s.imei, "860123456789024");
+    //strcpy(s.date, "2026-10-18");
+    //strcpy(s.clock, "10:28");
+    //strcpy(s.weekday, "SUN");
     s.imei_known = true;
     s.time_known = true;
     s.show_time = true;
@@ -442,20 +527,15 @@ static bool ota_fresh(uint32_t now,uint32_t sample,uint32_t limit)
     /* IRQ sampling may be slightly newer than this foreground snapshot. */
     return age>= -100 && (age<0 || (uint32_t)age<=limit);
 }
-/* SAM | 2026-11-07 07:14 +08:00 | Healthy measured USB can replace unknown battery, never missing/stale observations or activity checks. */
+/* SAM | 2026-11-07 +08:00 | OTA control events cannot restart admission or health timers; actual fresh power and independent safety gates still qualify every phase. */
 void yp_business_ota_inputs_with_usb(yp_business_ota_inputs_t *v,bool usb_power)
 {
-    /* SAM | 2026-10-24 22:58 +08:00 | Use the newer real ISR/foreground observation clock because UART processing can precede the next foreground poll; never refresh a sensor timestamp or relax its age limit. */
     uint32_t now=s.now_ms;
     if(!v)return;
     if(ota_keys_seen&&(int32_t)(ota_keys_ms-now)>0)now=ota_keys_ms;
-    v->known=ota_battery_seen&&(s.battery_known||usb_power)&&ota_fresh(now,ota_battery_ms,3000u)&&
-        ota_keys_seen&&ota_fresh(now,ota_keys_ms,100u)&&ota_motion_seen&&ota_fresh(now,ota_motion_ms,1500u);
-    /* SAM | 2026-10-28 19:47 +08:00 | Bench builds exclude held keys and queued key/call-action requests from OTA activity (see yp_business_keys); a dual-key SOS still raises alarm_active, which the OTA gates reject. */
-    v->activity=(!YP001_OTA_USB_BENCH_TEST&&(ota_key_down||key_requests!=consumed_keys||call_request!=consumed_call))||
-        ota_moving||s.searching||s.sleeping;
-    if(v->activity)ota_quiet_ms=now;
-    v->stable=v->known&&!v->activity&&(int32_t)(now-ota_quiet_ms)>=60000;
+    v->known=ota_battery_seen&&(s.battery_known||usb_power)&&ota_fresh(now,ota_battery_ms,3000u);
+    v->activity=false;
+    v->stable=v->known;
 }
 /* SAM | 2026-11-07 07:14 +08:00 | Existing callers without physical USB evidence keep the battery-known contract. */
 void yp_business_ota_inputs(yp_business_ota_inputs_t *v) { yp_business_ota_inputs_with_usb(v,false); }
@@ -491,10 +571,10 @@ void yp_business_peer_evidence(uint32_t out[12])
 }
 void yp_business_poll(uint32_t now) {
     s.now_ms=now;
-    if (key_requests!=consumed_keys) {
-        consumed_keys=key_requests;
-        /* SAM | 2026-11-04 +08:00 | A repeated SOS gesture cannot cancel or redial an active alarm (F-001). */
-        if (!s.alarm_active) (void)yp_business_start_alarm();
+    if (sos_requests!=consumed_sos) {
+        consumed_sos=sos_requests;
+        if (s.alarm_active) yp_business_cancel_alarm();
+        else (void)yp_business_start_alarm();
     }
     if (s.time_known) {
         uint32_t elapsed=(uint32_t)(now-clock_ms)/1000U;
@@ -506,33 +586,17 @@ void yp_business_poll(uint32_t now) {
         last_hello=now; hello_due=false;
         if (!send("hello",0)) notice("CAT1 UART UNAVAILABLE");
     }
-    /* SAM | 2026-11-04 +08:00 | Stop QP locally even during UART loss; a full queue keeps cancellation pending. */
-    if (sos_stop_due) {
-        sos_stop_waiting=true;
-        if (yp_business_port_sos(false)) {
-            sos_stop_due=false; sos_started=false;
-        } else sos_stop_waiting=false;
-    }
-    /* SAM | 2026-11-04 +08:00 | Admit QP SOS before UART readiness so the existing sleep/wake path can start. */
-    if (sos_start_due && !cancel_pending && yp_business_port_sos(true)) {
-        sos_start_due=false; sos_started=true;
-    }
-    if (!s.transport_ready) { consumed_call=call_request; return; }
-    if (alarm_pending && (!alarm_sent || (uint32_t)(now-last_alarm)>=2000U)) {
-        last_alarm=now; alarm_sent=true;
-        if (!send("alarm",s.alarm_id)) notice("ALARM UART RETRY");
-    }
-    /* SAM | 2026-10-13 08:55 +08:00 | UART acceptance is not durable cancellation; retry the same identity until peer confirms. */
-    if (cancel_pending && !sos_stop_due && s.alarm_id && (!cancel_sent || (uint32_t)(now-last_cancel)>=2000U)) {
-        last_cancel=now; cancel_sent=true;
-        if (!send("cancel",s.alarm_id)) notice("CANCEL UART RETRY");
-    }
-    uint32_t request=call_request;
-    uint8_t action=request!=consumed_call ? (uint8_t)(request&3U):0;
-    consumed_call=request;
-    if (action && ((action==1 && s.call==YP_CALL_INCOMING) ||
-        (action==2 && (s.call==YP_CALL_DIALING || s.call==YP_CALL_INCOMING || s.call==YP_CALL_CONNECTED)))) {
-        if (!send(action==1 ? "accept":"hangup",s.alarm_id)) notice("CALL UART FAILED");
+
+    /* SAM | 2026-11-08 20:30 +08:00 | Single-key answer/hang-up (11-06) must still reach CAT1 business_core over the BUS channel; GR sends SOS itself in the colleague architecture. */
+    if (!s.transport_ready) { consumed_call=call_request; }
+    else {
+        uint32_t request=call_request;
+        uint8_t action=request!=consumed_call ? (uint8_t)(request&3U):0;
+        consumed_call=request;
+        if (action && ((action==1 && s.call==YP_CALL_INCOMING) ||
+            (action==2 && (s.call==YP_CALL_DIALING || s.call==YP_CALL_INCOMING || s.call==YP_CALL_CONNECTED)))) {
+            if (!send(action==1 ? "accept":"hangup",s.alarm_id)) notice("CALL UART FAILED");
+        }
     }
     if (battery_pending && send("battery",0)) battery_pending=false;
 }
@@ -604,6 +668,13 @@ bool yp_business_request_glyphs(const uint32_t *cps, unsigned count) {
     n+=snprintf(line+n,sizeof(line)-(size_t)n,"\"}\r\n");
     return n>0 && (size_t)n<sizeof(line) && yp_business_port_send(line,(size_t)n);
 }
+/* SAM | 2026-11-08 20:30 +08:00 | Refuse shipping while a name transaction or a business request is still volatile. */
+bool yp_business_shipping_idle(void)
+{
+    return !s.transport_ready && !name_txn.open && !alarm_pending && !cancel_pending &&
+        call_request==consumed_call;
+}
+
 /* Flat typed event envelope: depth/duplicate keys rejected before any mutation.
  * Limits are independent from the UART ring capacity. No platform commands or
  * JSON strings may become CLI commands. */
@@ -648,15 +719,21 @@ bool yp_business_handle_line(const char *line,size_t length) {
             differs=differs || !s.alarm_active || s.alarm_id!=n;
             s.alarm_active=true; s.alarm_id=n; alarm_pending=false;
         } else if (!alarm_pending && s.alarm_active && n==s.alarm_id) {
-            /* SAM | 2026-11-04 +08:00 | Matching durable cancellation also drains the QP job before a new SOS starts. */
-            s.alarm_active=false; cancel_pending=false; sos_start_due=false; sos_stop_due=sos_started; differs=true;
+            /* SAM | 2026-10-13 08:46 +08:00 | Only the matching durable cancellation may clear local alarm; stale/empty peers cannot. */
+            s.alarm_active=false; cancel_pending=false; differs=true;
         }
         /* SAM | 2026-10-13 12:05 +08:00 | Resend battery after every validated
          * hello because a quick CAT reset can lose RAM data without changing
          * the displayed identity/alarm; resync alone must not refresh LVGL. */
+        /* SAM | 2026-11-07 +08:00 | Restore the durable phone projection after either processor restarts. */
+        const char *phone=str(j,"call_out");
+        if (phone!=NULL) (void)yp_business_call_out_set(phone);
         battery_pending=true;
         if (differs) changed();
         last_rx=s.now_ms;
+    } else if (!strcmp(op,"phone_bind")) {
+        /* SAM | 2026-11-07 +08:00 | Mirror only a committed CAT1 snapshot; CAT1 alone sends the platform reply. */
+        (void)yp_business_call_out_set(str(j,"call_out"));
     } else if (!strcmp(op,"alarm_state")) {
         cJSON *active=cJSON_GetObjectItemCaseSensitive(j,"active");
         if (!cJSON_IsBool(active) || !number(j,"id",0xffffffffU,&n) || (cJSON_IsTrue(active) && !n)) goto done;
@@ -667,8 +744,7 @@ bool yp_business_handle_line(const char *line,size_t length) {
                 notice("ALARM ACTIVE"); changed();
             }
         } else if (s.alarm_active && n==s.alarm_id && !alarm_pending) {
-            /* SAM | 2026-11-04 +08:00 | Keep the QP stop pending even when CAT1 has already committed cancellation. */
-            s.alarm_active=false; cancel_pending=false; sos_start_due=false; sos_stop_due=sos_started; notice("ALARM CANCELLED"); changed();
+            s.alarm_active=false; cancel_pending=false; notice("ALARM CANCELLED"); changed();
         }
         last_rx=s.now_ms;
     } else if (!strcmp(op,"call") && value) {

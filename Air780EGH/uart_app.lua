@@ -242,6 +242,14 @@ local function uart_recv_cb()
 end
 
 -- ==================== 服务器下行消息订阅（改用异步队列发送） ====================
+-- SAM | 2026-11-08 +08:00 | OTA control-event demotion: while an OTA transaction is active (phase ~= IDLE) platform downlinks must not be forwarded to GR UART1 nor echoed to MQTT; the OTA window owns UART1.
+local function ota_busy()
+    local ok, busy = pcall(function()
+        local s = require("ota_runtime").instance():status()
+        return type(s) == "table" and s.phase ~= nil and s.phase ~= "IDLE"
+    end)
+    return ok and busy == true
+end
 local function recv_data_from_server_proc(prefix, topic, payload)
     -- SAM | 2026-10-13 09:14 +08:00 | Never turn untrusted MQTT bytes into internal UART frames or echo unknown customer commands.
     if type(topic)~="string" or type(payload)~="string" or
@@ -249,10 +257,14 @@ local function recv_data_from_server_proc(prefix, topic, payload)
         log.warn("5", "6l")
         return
     end
-    if topic:find("^/iotplat/render3/WARNCARD3/") then
-        log.warn("5", "6m", #payload)
+    if ota_busy() then
+        log.warn("5", "ota busy, downlink dropped", #payload)
         return
     end
+    --if topic:find("^/iotplat/render3/WARNCARD3/") then
+    --    log.warn("5", "6m", #payload)
+    --    return
+    --end
     log.info("5", "6n", prefix, topic, #payload)
     uart_async_push(prefix..topic..","..payload)
     sys.publish("SEND_DATA_REQ", "timer", mobile.imei().."/timer/up", payload, 1)

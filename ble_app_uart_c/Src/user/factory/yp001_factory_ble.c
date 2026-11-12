@@ -107,8 +107,11 @@ static void respond(const ft_request_t *r,bool ok,const char *extra) {
 static void ship_status(const ft_request_t *r,bool ok) {
     uint8_t phase;uint32_t token;bool attempted;
     yp001_charger_ship_snapshot(&phase,&token,&attempted);
-    char extra[112];snprintf(extra,sizeof(extra),"state=%u token=%lu attempted=%u delay_s=12",
-        phase,(unsigned long)token,(unsigned)attempted);respond(r,ok,extra);
+    /* SAM | 2026-11-08 20:30 +08:00 | Publish actual job progress separately from the legacy register-controller state. */
+    uint8_t automatic;const char *reason;
+    yp001_charger_ship_auto_snapshot(&automatic,&reason);
+    char extra[192];snprintf(extra,sizeof(extra),"state=%u token=%lu attempted=%u delay_s=12 auto_phase=%u reason=%s",
+        phase,(unsigned long)token,(unsigned)attempted,automatic,reason);respond(r,ok,extra);
 }
 /* SAM | 2026-11-06 +08:00 | Structured GPIO request evidence must not be presented as measured VBAT or module startup. */
 static void power_reply(const ft_request_t *r,int code) {
@@ -165,7 +168,9 @@ static void execute(const ft_request_t *r) {
     }
     if (r->op==FT_CLI) {
         if (!ft_cli_allowed(r->command)) {respond(r,false,"reason=command_not_enabled");return;}
-        if (!ft_cli_read_only(r->command) &&
+        /* SAM | 2026-11-08 20:30 +08:00 | Only the approved single shipping entry bypasses the operator key lease. */
+        /* SAM | 2026-11-12 +08:00 | Factory deep-sleep current test is forced by user decision: no key lease or business guard (sleep_test force keeps only OTA/ship/key-held checks). */
+        if (strcmp(r->command,"charger ship start") && strcmp(r->command,"sleep_test enter force") && !ft_cli_read_only(r->command) &&
             (!ft_lease_valid(granted,lease_since,clock_ms)||
              (strcmp(r->command,"cat1_power hold_off") && !safe()))) {
             respond(r,false,"reason=physical_unlock_or_business_guard");return;
@@ -177,6 +182,8 @@ static void execute(const ft_request_t *r) {
         serial_command=false;
         char extra[40];snprintf(extra,sizeof(extra),"code=%d",code);respond(r,code==0,extra);return;
     }
+    /* SAM | 2026-11-08 20:30 +08:00 | Start is self-guarded by the charger coordinator, including all existing power checks. */
+    if (r->op==FT_SHIP_START) {ship_status(r,yp001_charger_ship_start());return;}
     if (r->op==FT_SHIP_STATUS) {ship_status(r,true);return;}
     if (r->op==FT_UNLOCK) {
         /* Single physical left key avoids the customer's two-key SOS gesture. */

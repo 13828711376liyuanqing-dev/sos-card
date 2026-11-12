@@ -101,7 +101,7 @@ def main():
 
         # 6. the tools still work from the toolkit folder
         code, log = run(usb, '--source', receiver, '--out', tmp / 'usb_out', '--check-only')
-        assert code == 0 and 'LuaDB 496238' in log and 'OTA 必检功能齐全' in log, log
+        assert code == 0 and 'LuaDB 498724' in log and 'OTA 必检功能齐全' in log, log   # SAM | 2026-11-08: size of the pinned 1.5.11 receiver sample (was the older 1.5.10 number)
         # SAM | 2026-11-04 +08:00 | the tools read the red lines from the kit's own budget.json
         assert '脚本区红线 507904' in log and str(kit / 'budget.json') in log, log
     print('PASS toolkit (run from a copy): all files present and equal to MANIFEST, no private key material (guard also refuses a leaked key); --version shows tool, Luatools, '

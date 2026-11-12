@@ -122,6 +122,9 @@ def test_transport_edges():
 assert(ota_uart_send(frame));assert(ota_uart_send(w.encode(4,2,8,4096,'next')))
 assert(uart_send_raw('BUS_EVT=retained'));pump();sent()
 feed(quiet(240));pump();sent();clock=8001;pump()
+-- SAM | 2026-11-07 +08:00 | The accepted quiet lease is 90s; verify both its protected interval and expiry.
+assert(not ota_uart_faulted(),'valid 90-second Flash lease faulted at the old 8-second boundary')
+clock=90001;pump();assert(ota_uart_faulted(),'expired quiet lease did not latch a UART fault')
 feed(quiet(242));pump();sent()
 assert(#written==4 and written[4]=='BUS_EVT=retained\\r\\n','faulted queued OTA escaped before asynchronous cancellation')
 assert(not ota_uart_send(frame),'fault latch reopened OTA')
@@ -171,7 +174,7 @@ def test_release_recovery_edges():
     runtime().execute("""
 feed(quiet(240));pump();sent();assert(uart_send_raw('BUS_EVT=held'))
 json={decode=function()return {op='hello'}end};package.loaded.business_runtime={command=function()end}
-clock=8001;pump();feed('BUS_CMD={"op":"hello"}\\r\\n');pump()
+clock=90001;pump();feed('BUS_CMD={"op":"hello"}\\r\\n');pump()
 assert(#written==1,'hello opened UART while Flash release was still unknown')
 feed(quiet(242));pump();sent()
 assert(written[3]=='BUS_EVT=held\\r\\n');sent()

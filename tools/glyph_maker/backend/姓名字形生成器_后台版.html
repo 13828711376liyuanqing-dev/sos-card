@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>姓名字形生成器</title>
+<!-- SAM | 2026-11-02 +08:00 | 后台版：无硬件、无安装，浏览器打开即用。输入姓名（或码点、或描点）-> residentNameMsg JSON。
+     格式与终端 GR 一致：1bpp、每行按字节补齐、高位在前；CRC-16/CCITT-FALSE 覆盖 U(3B) S W H X Y A(2B) + 点阵。 -->
+<style>
+:root { --bg:#f6f6f4; --card:#fff; --ink:#1d1d1b; --mute:#6b6b66; --line:#dcdcd6; --acc:#1f5fbf; --bad:#b3261e; --ok:#1e7d34; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 system-ui,"Microsoft YaHei",sans-serif; }
+header { padding:14px 20px; border-bottom:1px solid var(--line); background:var(--card); }
+header h1 { margin:0; font-size:18px; }
+header p { margin:2px 0 0; color:var(--mute); }
+main { display:grid; grid-template-columns:minmax(320px,440px) 1fr; gap:16px; padding:16px 20px; }
+@media (max-width:900px){ main{ grid-template-columns:1fr; } }
+section { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+h2 { font-size:15px; margin:0 0 8px; }
+label { display:block; margin:6px 0 2px; color:var(--mute); font-size:13px; }
+input[type=text], input[type=number], select, textarea { width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font:inherit; background:#fff; }
+textarea { font:12px/1.4 Consolas,monospace; height:140px; }
+.row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.row > * { flex:0 0 auto; }
+button { padding:6px 12px; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:pointer; font:inherit; }
+button.primary { background:var(--acc); color:#fff; border-color:var(--acc); }
+button:hover { filter:brightness(.96); }
+.chars { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+.chip { border:1px solid var(--line); border-radius:6px; padding:4px 8px; cursor:pointer; text-align:center; min-width:58px; }
+.chip b { display:block; font-size:22px; font-weight:400; font-family:SimHei,"SimSun-ExtB","MingLiU-ExtB",sans-serif; }
+.chip small { color:var(--mute); }
+.chip.sel { outline:2px solid var(--acc); }
+.chip.miss { border-color:var(--bad); }
+.chip .st { font-size:12px; }
+.chip .bd { margin-top:3px; padding:1px 6px; font-size:12px; }
+.st.ok { color:var(--ok); } .st.bad { color:var(--bad); } .st.hand { color:var(--acc); }
+#grid { border:1px solid var(--line); cursor:crosshair; touch-action:none; background:#fff; }
+#screen { border:1px solid var(--line); image-rendering:pixelated; width:400px; height:400px; max-width:100%; }
+.hint { color:var(--mute); font-size:12px; }
+.msg { margin-top:6px; font-size:13px; }
+.msg.bad { color:var(--bad); } .msg.ok { color:var(--ok); }
+</style>
+</head>
+<body>
+<header>
+  <h1>姓名字形生成器（后台版）</h1>
+  <p>输入姓名 → 生成终端要的字形 → 下载 residentNameMsg JSON 上传/下发。打不出的字用"码点"输入；字体里没有的字用"描点"画。</p>
+</header>
+<main>
+  <div>
+    <section>
+      <h2>1. 姓名</h2>
+      <label>姓名（输入法输入或粘贴；汉字最多 8 个，英文不限个数，总长 ≤ 63 字节）</label>
+      <input id="name" type="text" value="张秀珺">
+      <label>打不出来的字：输入 Unicode 码点后插入（如 U+20BB7、4DAE、&amp;#x73FA;，可多个用空格隔开）</label>
+      <div class="row"><input id="cp" type="text" style="flex:1" placeholder="U+20BB7"><button id="cpAdd">插入</button></div>
+      <div class="row" style="margin-top:6px">
+        <div style="flex:1"><label>房号</label><input id="room" type="text" value="1#1-102"></div>
+        <div style="flex:1"><label>园区</label><input id="campus" type="text" value="泰康之家·燕园"></div>
+      </div>
+      <label>Seq = 生成时的当前时间（秒），每次生成自动刷新；设备只收比上次大的 Seq</label>
+      <input id="seq" type="number" readonly>
+      <label style="font-weight:normal"><input id="seqManual" type="checkbox"> 手动 Seq（只给台架测试用，不能早于 2026-01-01）</label>
+      <div class="chars" id="chars"></div>
+      <div class="msg" id="nameMsg"></div>
+    </section>
+    <section style="margin-top:12px">
+      <h2>2. 字体</h2>
+      <label>渲染字体（终端自带字是黑体；生僻字自动找扩展字库）</label>
+      <select id="font">
+        <option value="SimHei, 'SimSun-ExtB', 'MingLiU-ExtB', 'SimSun'">黑体 + 扩展B区（推荐）</option>
+        <option value="SimSun, 'SimSun-ExtB', 'MingLiU-ExtB'">宋体 + 扩展B区</option>
+        <option value="'Microsoft YaHei', 'SimSun-ExtB'">微软雅黑 + 扩展B区</option>
+      </select>
+      <label>还没有？加载字体文件（.ttf/.otf，如花园明朝、思源等含生僻字的字体）</label>
+      <input id="fontFile" type="file" accept=".ttf,.otf,.ttc">
+      <label>二值化阈值 <span id="thv">128</span></label>
+      <input id="th" type="range" min="40" max="220" value="128" style="width:100%">
+    </section>
+    <section style="margin-top:12px">
+      <h2>4. 输出</h2>
+      <div class="row">
+        <button class="primary" id="dl">下载 residentNameMsg JSON</button>
+        <button id="copy">复制</button>
+      </div>
+      <div class="msg" id="outMsg"></div>
+      <textarea id="out" readonly></textarea>
+      <div class="row" style="margin-top:6px">
+        <button id="libExport">导出手绘字库</button>
+        <label style="margin:0"><input id="libImport" type="file" accept=".json" style="display:none"><span class="hint" style="cursor:pointer;text-decoration:underline" onclick="document.getElementById('libImport').click()">导入手绘字库</span></label>
+        <span class="hint" id="libInfo"></span>
+      </div>
+    </section>
+  </div>
+  <div>
+    <section>
+      <h2>3. 描点（选上面某个字；左键画、右键擦、可拖动）</h2>
+      <div class="row">
+        <span id="edWhat" class="hint"></span>
+        <label style="margin:0"><input type="radio" name="sz" value="32" checked> 32px（主页）</label>
+        <label style="margin:0"><input type="radio" name="sz" value="16"> 16px（低电页）</label>
+      </div>
+      <div class="row" style="margin:6px 0">
+        <label style="margin:0">参考字（灰色底，用来照着描，如"君"）</label>
+        <input id="ref" type="text" style="width:70px">
+        <button id="clr">清空</button><button data-mv="-1,0">←</button><button data-mv="1,0">→</button>
+        <button data-mv="0,-1">↑</button><button data-mv="0,1">↓</button>
+        <button id="reload">用字体重新渲染</button>
+        <button class="primary" id="useHand">采用这个手绘字形</button>
+      </div>
+      <canvas id="grid"></canvas>
+      <div class="hint">红线 = 基线。编辑框 = 终端一行的高度；字形宽度不超过框宽。手绘的字会记住（本浏览器）并可导出给同事。</div>
+    </section>
+    <section style="margin-top:12px">
+      <h2>预览（终端 200×200 电子纸，放大 2 倍：姓名 32px、姓名 16px、园区 16px）</h2>
+      <canvas id="screen" width="200" height="200"></canvas>
+    </section>
+  </div>
+</main>
+<pre id="auto-out" hidden></pre>
+<script>
+// CORE-BEGIN (pure functions; tools/glyph_maker/backend/test_core.js runs them under Node)
+const METRICS = {16: {lh: 17, bl: 2}, 32: {lh: 33, bl: 5}};   // font_cn_16/32 line_height/base_line on the device
+const SIZES = [32, 16];
+function crc16(bytes, crc = 0xFFFF) {
+  for (const b of bytes) {
+    crc ^= b << 8;
+    for (let i = 0; i < 8; i++) crc = crc & 0x8000 ? ((crc << 1) ^ 0x1021) & 0xFFFF : (crc << 1) & 0xFFFF;
+  }
+  return crc;
+}
+function pack(rows) {                    // rows of 0/1; each row padded to whole bytes, MSB first
+  const out = [];
+  for (const r of rows) for (let i = 0; i < r.length; i += 8) {
+    let b = 0;
+    for (let k = 0; k < 8; k++) b = (b << 1) | (r[i + k] ? 1 : 0);
+    out.push(b);
+  }
+  return out;
+}
+function b64(bytes) {
+  const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const n = (bytes[i] << 16) | ((bytes[i + 1] || 0) << 8) | (bytes[i + 2] || 0);
+    s += A[n >> 18 & 63] + A[n >> 12 & 63] + (i + 1 < bytes.length ? A[n >> 6 & 63] : '=') + (i + 2 < bytes.length ? A[n & 63] : '=');
+  }
+  return s;
+}
+function trim(g) {                       // g: {u,size,rows,x,y,a}; LVGL offsets: x = left, y = bottom row above baseline
+  const rows = g.rows, H = rows.length;
+  const ink = rows.map(r => r.some(Boolean));
+  if (!ink.some(Boolean)) return {...g, rows: []};
+  const top = ink.indexOf(true), bot = ink.lastIndexOf(true);
+  let left = Infinity, right = -1;
+  for (const r of rows) { const a = r.indexOf(1), b = r.lastIndexOf(1); if (a >= 0) { left = Math.min(left, a); right = Math.max(right, b); } }
+  return {...g, rows: rows.slice(top, bot + 1).map(r => r.slice(left, right + 1)), x: g.x + left, y: g.y + (H - 1 - bot)};
+}
+function glyphJson(g) {
+  const W = g.rows[0].length, H = g.rows.length, d = pack(g.rows);
+  const hdr = [g.u >> 16 & 255, g.u >> 8 & 255, g.u & 255, g.size, W, H, g.x & 255, g.y & 255, g.a >> 8 & 255, g.a & 255];
+  const hex = g.u.toString(16).toUpperCase().padStart(4, '0');
+  return {U: hex, S: g.size, W, H, X: g.x, Y: g.y, A: g.a, D: b64(d), C: crc16(d, crc16(hdr)).toString(16).toUpperCase().padStart(4, '0')};
+}
+function checkGlyph(j) {
+  if (j.W < 1 || j.W > 40 || j.H < 1 || j.H > 40) return '宽高要在 1..40';
+  if (Math.ceil(j.W / 8) * j.H > 200) return '点阵超过 200 字节';
+  if (Math.abs(j.X) > 40 || Math.abs(j.Y) > 40) return '偏移超出 ±40';
+  return '';
+}
+// SAM | 2026-11-03 +08:00 | User decision 11-03: the main page shows at most 5 characters; the rest is cut off,
+// so the name is trimmed after its 5th non-ASCII character (English is not counted) and only those glyphs are pushed.
+function shownName(name) {
+  let n = 0; const out = [];
+  for (const c of Array.from(name)) {
+    if (c.codePointAt(0) >= 0x80) { if (n === 5) break; n++; }
+    out.push(c);
+  }
+  return out.join('').trimEnd();
+}
+// SAM | 2026-11-04 +08:00 | GR keeps the set in two dedicated Flash pages (4 KB); record = 20 B header + 16 B per glyph + bitmaps, max 4000.
+const storeBytes = glyphs => 20 + 16 * glyphs.length + glyphs.reduce((n, g) => n + Math.ceil(g.W / 8) * g.H, 0);
+function buildMsg(name, room, campus, seq, glyphs) {
+  name = shownName(name);
+  const chars = Array.from(name);
+  // English (ASCII) is drawn with the terminal's built-in font: only non-ASCII characters count toward the 8 limit
+  if (!chars.length || chars.filter(c => c.codePointAt(0) >= 0x80).length > 8) throw new Error('姓名：汉字等非英文字符最多 8 个');
+  if (new TextEncoder().encode(name).length > 63) throw new Error('姓名 UTF-8 超过 63 字节');
+  for (const g of glyphs) { const e = checkGlyph(g); if (e) throw new Error(`${g.U}/${g.S}: ${e}`); }
+  if (glyphs.length > 28) throw new Error('字形超过 28 个（姓名 8 字×2 + 园区 11 字）');
+  if (storeBytes(glyphs) > 4000) throw new Error(`字形数据 ${storeBytes(glyphs)} 字节，超过设备能保存的 4000 字节`);
+  return {MsgType: 'residentNameMsg', Seq: seq, Name: name, Room: room, Campus: campus, FontId: 'simhei', FontVer: 1, Glyphs: glyphs};
+}
+// Thin serif fallback fonts (e.g. SimSun-ExtB for U+20000+) look pale next to SimHei on the 1bpp e-paper.
+function emboldenX(g) {                  // widen every ink run by one pixel to the right
+  const rows = g.rows.map(r => { const o = [...r, 0]; r.forEach((v, i) => { if (v) o[i + 1] = 1; }); return o; });
+  return trim({...g, rows});
+}
+if (typeof module !== 'undefined') module.exports = {crc16, pack, b64, trim, glyphJson, buildMsg, METRICS, emboldenX};
+// CORE-END
+
+const $ = id => document.getElementById(id);
+let threshold = 128, sel = null, lib = {};
+try { lib = JSON.parse(localStorage.getItem('yp_glyph_lib') || '{}'); } catch (e) { lib = {}; }
+const saveLib = () => { try { localStorage.setItem('yp_glyph_lib', JSON.stringify(lib)); } catch (e) {} showLib(); };
+const showLib = () => { $('libInfo').textContent = `手绘字形 ${Object.keys(lib).length} 个`; };
+const key = (u, s) => u + '_' + s;
+$('seq').value = Math.floor(Date.now() / 1000);   // refreshed to the generation time by build()
+
+// Render one character at `size` px with the selected font chain; same geometry as glyphlib.render().
+function renderRows(ch, size, family, th = threshold) {
+  const cv = 3 * size, c = document.createElement('canvas'); c.width = c.height = cv;
+  const x = c.getContext('2d', {willReadFrequently: true});
+  x.fillStyle = '#fff'; x.fillRect(0, 0, cv, cv); x.fillStyle = '#000';
+  x.font = `${size}px ${family}`; x.textBaseline = 'alphabetic';
+  x.fillText(ch, size, size * 2);
+  const px = x.getImageData(0, 0, cv, cv).data, rows = [];
+  for (let y = 0; y < cv; y++) { const r = []; for (let i = 0; i < cv; i++) r.push(255 - px[(y * cv + i) * 4] >= th ? 1 : 0); rows.push(r); }
+  return trim({u: ch.codePointAt(0), size, rows, x: -size, y: 2 * size - cv, a: size * 16});
+}
+const same = (a, b) => JSON.stringify(a.rows) === JSON.stringify(b.rows);
+// A character no font has renders as the same box/blank as a private-use code point: treat it as missing.
+function rendered(ch, size) {
+  const fam = $('font').value, g = renderRows(ch, size, fam);
+  const tofu = renderRows(String.fromCodePoint(0x10FFFD), size, fam);
+  return {g, missing: !g.rows.length || same(g, tofu)};
+}
+const boldMode = {};                   // per character: 'auto' (default) | 'on' | 'off'
+// The first font of the chain lacks `ch` when it renders identically to a different-style font: the browser then
+// borrowed the glyph from a fallback (for SimHei that is the thin SimSun-ExtB / MingLiU-ExtB).
+function primaryLacks(ch, size) {
+  const first = $('font').value.split(',')[0].trim(), other = /SimSun/i.test(first) ? 'SimHei' : 'SimSun';
+  return same(renderRows(ch, size, first), renderRows(ch, size, other));
+}
+function wantBold(ch, size) {
+  const m = boldMode[ch] || 'auto';
+  return m === 'on' || (m === 'auto' && primaryLacks(ch, size));
+}
+function glyphFor(ch, size) {
+  const u = ch.codePointAt(0), h = lib[key(u, size)];
+  if (h) return {g: h, src: 'hand'};
+  const r = rendered(ch, size);
+  if (r.missing) return {g: r.g, src: 'missing'};
+  if (wantBold(ch, size)) return {g: emboldenX(renderRows(ch, size, $('font').value, Math.min(threshold, 64))), src: 'font', bold: true};
+  return {g: r.g, src: 'font'};
+}
+function nameChars() { return [...new Set(Array.from(shownName($('name').value.trim())))].filter(c => c.codePointAt(0) >= 0x80); }
+// Campus changes per site (燕园, 鹏园, ...): its characters are pushed too, 16px only.
+function campusChars() { const n = new Set(nameChars()); return [...new Set(Array.from($('campus').value.trim()))].filter(c => c.codePointAt(0) >= 0x80 && !n.has(c)); }
+// SAM | 2026-11-04 +08:00 | User rule: Name / Room / Campus come only from the platform; the device keeps none of them locally
+// (factory: storage space only), so every non-ASCII character is pushed whatever the built-in fonts hold.
+const sizesOf = ch => (nameChars().includes(ch) ? SIZES : [16]);
+const allChars = () => [...nameChars(), ...campusChars()].filter(ch => sizesOf(ch).length);
+
+function refresh() {
+  const chars = allChars(), box = $('chars'); box.innerHTML = '';
+  let missing = [];
+  for (const ch of chars) {
+    const res = sizesOf(ch).map(s => glyphFor(ch, s)), st = res.map(r => r.src);
+    const bad = st.includes('missing'), hand = st.includes('hand'), bolded = res.some(r => r.bold);
+    if (bad) missing.push(ch);
+    const d = document.createElement('div');
+    d.className = 'chip' + (sel === ch ? ' sel' : '') + (bad ? ' miss' : '');
+    d.innerHTML = `<b>${ch}</b><small>U+${ch.codePointAt(0).toString(16).toUpperCase()}${nameChars().includes(ch) ? '' : ' 园区'} ${sizesOf(ch).join('/')}px</small><div class="st ${bad ? 'bad' : hand ? 'hand' : 'ok'}">${bad ? '字体没有，请描点' : hand ? '手绘' : '字体'}</div>` +
+      (bad || hand ? '' : `<button class="bd" title="笔画细的字（多为扩展区宋体）会显得淡，自动加粗">${{auto: '加粗:自动', on: '加粗:开', off: '加粗:关'}[boldMode[ch] || 'auto']}${bolded ? ' ✓' : ''}</button>`);
+    const bd = d.querySelector('.bd');
+    if (bd) bd.onclick = ev => { ev.stopPropagation(); boldMode[ch] = {auto: 'on', on: 'off', off: 'auto'}[boldMode[ch] || 'auto']; refresh(); if (sel) loadEditor(); };
+    d.onclick = () => { sel = ch; loadEditor(); refresh(); };
+    box.appendChild(d);
+  }
+  const nm = $('nameMsg');
+  nm.className = 'msg ' + (missing.length ? 'bad' : 'ok');
+  nm.textContent = missing.length ? `这些字当前字体里没有：${missing.join(' ')}。点它，在右边描点，或加载含该字的字体文件。` : (chars.length ? '全部字都有字形。' : '');
+  build(missing.length > 0);
+  preview();
+}
+
+// SAM | 2026-11-04 +08:00 | The first platform file carried Seq 1730600000 (2024, the old fixed value of the ?auto= test hook):
+// devices refuse a Seq not larger than the last one. Seq is now the generation time (manual only for bench tests, never before
+// 2026-01-01), and the room may only use the device's built-in 28px characters (Room glyphs are not pushed, user 11-04).
+const SEQ_MIN = 1767225600;                                   // 2026-01-01 00:00 +08:00
+const ROOM_CJK = new Set(Array.from('号楼栋单元层室'));
+const nowSeq = () => Math.floor(Date.now() / 1000);
+function checkSeqRoom(seq, room) {
+  if (!Number.isInteger(seq) || seq < SEQ_MIN || seq > nowSeq() + 86400) throw new Error(`Seq ${seq} 不对：应是生成时的当前时间（秒），不能早于 2026-01-01`);
+  const bad = Array.from(room).filter(c => c.codePointAt(0) >= 0x80 && !ROOM_CJK.has(c));
+  if (bad.length) throw new Error(`房号里有设备显示不了的字：${bad.join('')}（房号只能用数字、字母和 号楼栋单元层室）`);
+}
+function build(hasMissing) {
+  const out = $('out'), m = $('outMsg');
+  try {
+    if (hasMissing) throw new Error('还有字没有字形，不能输出');
+    if (!$('seqManual').checked && !autoSeq) $('seq').value = nowSeq();
+    checkSeqRoom(Number($('seq').value), $('room').value);
+    const glyphs = [];
+    if (campusChars().length + nameChars().filter(c => Array.from($('campus').value).includes(c)).length > 11) throw new Error('园区：汉字等非英文字符最多 11 个（16px 一行 180 像素）');
+    for (const ch of allChars()) for (const s of sizesOf(ch)) glyphs.push(glyphJson(glyphFor(ch, s).g));
+    const msg = buildMsg($('name').value.trim(), $('room').value, $('campus').value, Number($('seq').value), glyphs);
+    out.value = JSON.stringify(msg);
+    m.className = 'msg ok';
+    m.textContent = `字形 ${glyphs.length} 个，设备存储 ${storeBytes(glyphs)}/4000 字节，文件 ${new TextEncoder().encode(out.value).length} 字节；` +
+      `Seq ${msg.Seq}（${new Date(msg.Seq * 1000).toLocaleString('zh-CN', {hour12: false})}）。`;
+    $('auto-out').textContent = out.value;
+  } catch (e) { out.value = ''; m.className = 'msg bad'; m.textContent = e.message; $('auto-out').textContent = 'ERROR ' + e.message; }
+}
+
+function preview() {
+  const c = $('screen'), x = c.getContext('2d');
+  x.fillStyle = '#fff'; x.fillRect(0, 0, 200, 200); x.fillStyle = '#000';
+  const shown = shownName($('name').value.trim());
+  for (const [size, top, text] of [[32, 50, shown], [16, 110, shown], [16, 160, $('campus').value]]) {
+    const M = METRICS[size]; let pen = 10;
+    for (const ch of Array.from(text.trim())) {
+      const {g, src} = ch.codePointAt(0) < 0x80 ? {g: renderRows(ch, size, $('font').value), src: 'font'} : glyphFor(ch, size);
+      if (src !== 'missing' && g.rows.length) {
+        const y0 = top + (M.lh - M.bl) - g.rows.length - g.y;
+        g.rows.forEach((r, yy) => r.forEach((v, xx) => { if (v) x.fillRect(pen + g.x + xx, y0 + yy, 1, 1); }));
+      } else { x.strokeRect(pen + 1.5, top + 2.5, size / 2, M.lh - 4); }
+      pen += (g.a + 8) >> 4 || size;
+    }
+  }
+}
+
+// ---- dot editor
+const CELL = 14, ed = {W: 32, H: 33, base: 28, px: [], ref: null};
+const edSize = () => Number(document.querySelector('input[name=sz]:checked').value);
+function loadEditor(fromFont = false) {
+  if (!sel) { $('edWhat').textContent = '先在左边点选一个字'; return; }
+  const s = edSize(), M = METRICS[s], u = sel.codePointAt(0);
+  ed.W = s; ed.H = M.lh; ed.base = M.lh - M.bl;
+  const g = glyphFor(sel, s).g;   // "用字体重新渲染" already dropped the hand-drawn copy
+  ed.px = Array.from({length: ed.H}, () => Array(ed.W).fill(0));
+  if (g && g.rows.length && !(glyphFor(sel, s).src === 'missing' && !fromFont)) place(g, ed.px);
+  ed.ref = null;
+  const rc = $('ref').value.trim();
+  if (rc) { ed.ref = Array.from({length: ed.H}, () => Array(ed.W).fill(0)); place(renderRows(Array.from(rc)[0], s, $('font').value), ed.ref); }
+  $('edWhat').textContent = `${sel}  U+${u.toString(16).toUpperCase()}`;
+  drawGrid();
+}
+function place(g, grid) {
+  g.rows.forEach((r, yy) => r.forEach((v, xx) => {
+    const X = g.x + xx, Y = ed.base - g.y - g.rows.length + yy;
+    if (v && X >= 0 && X < ed.W && Y >= 0 && Y < ed.H) grid[Y][X] = 1;
+  }));
+}
+function drawGrid() {
+  const c = $('grid'); c.width = ed.W * CELL + 1; c.height = ed.H * CELL + 1;
+  const x = c.getContext('2d');
+  for (let y = 0; y < ed.H; y++) for (let i = 0; i < ed.W; i++) {
+    x.fillStyle = ed.px[y][i] ? '#000' : (ed.ref && ed.ref[y][i] ? '#d8d8d8' : '#fff');
+    x.fillRect(i * CELL, y * CELL, CELL, CELL); x.strokeStyle = '#e4e4e4'; x.strokeRect(i * CELL + .5, y * CELL + .5, CELL, CELL);
+  }
+  x.strokeStyle = '#d00'; x.lineWidth = 2; x.beginPath(); x.moveTo(0, ed.base * CELL); x.lineTo(ed.W * CELL, ed.base * CELL); x.stroke();
+}
+let paintVal = null;
+$('grid').addEventListener('contextmenu', e => e.preventDefault());
+$('grid').addEventListener('pointerdown', e => { paintVal = e.button === 2 ? 0 : 1; paint(e); $('grid').setPointerCapture(e.pointerId); });
+$('grid').addEventListener('pointermove', e => { if (paintVal !== null) paint(e); });
+window.addEventListener('pointerup', () => { paintVal = null; });
+function paint(e) {
+  const r = $('grid').getBoundingClientRect(), i = Math.floor((e.clientX - r.left) / CELL), y = Math.floor((e.clientY - r.top) / CELL);
+  if (i >= 0 && i < ed.W && y >= 0 && y < ed.H && ed.px[y][i] !== paintVal) { ed.px[y][i] = paintVal; drawGrid(); }
+}
+document.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => {
+  const [dx, dy] = b.dataset.mv.split(',').map(Number);
+  ed.px = ed.px.map((r, y) => r.map((_, i) => (ed.px[y - dy] || [])[i - dx] || 0)); drawGrid();
+});
+$('clr').onclick = () => { ed.px = ed.px.map(r => r.map(() => 0)); drawGrid(); };
+$('reload').onclick = () => { if (sel) { delete lib[key(sel.codePointAt(0), edSize())]; saveLib(); loadEditor(true); refresh(); } };
+$('ref').oninput = () => loadEditor();
+$('useHand').onclick = () => {
+  if (!sel) return;
+  const s = edSize(), g = trim({u: sel.codePointAt(0), size: s, rows: ed.px.map(r => r.slice()), x: 0, y: ed.base - ed.H, a: s * 16});
+  if (!g.rows.length) { alert('还没有画点'); return; }
+  lib[key(g.u, s)] = g; saveLib(); refresh();
+};
+document.querySelectorAll('input[name=sz]').forEach(r => r.onchange = () => loadEditor());
+
+// ---- inputs
+$('cpAdd').onclick = () => {
+  const add = [];
+  for (const t of $('cp').value.split(/[\s,，]+/).filter(Boolean)) {
+    const m = t.match(/^(?:U\+|&#x|0x)?([0-9a-f]{4,6});?$/i);
+    const v = m && parseInt(m[1], 16);
+    if (!v || v > 0x10FFFF || (v >= 0xD800 && v <= 0xDFFF)) { alert('码点不对：' + t); return; }
+    add.push(String.fromCodePoint(v));
+  }
+  $('name').value += add.join(''); $('cp').value = ''; refresh();
+};
+$('th').oninput = () => { threshold = Number($('th').value); $('thv').textContent = threshold; refresh(); if (sel) loadEditor(); };
+['name', 'room', 'campus', 'seq', 'font'].forEach(id => $(id).addEventListener('input', refresh));
+$('seqManual').onchange = () => { $('seq').readOnly = !$('seqManual').checked; refresh(); };
+$('fontFile').onchange = async () => {
+  const f = $('fontFile').files[0]; if (!f) return;
+  try {
+    const face = new FontFace('UserFont', await f.arrayBuffer()); await face.load(); document.fonts.add(face);
+    const o = document.createElement('option'); o.value = "UserFont, SimHei, 'SimSun-ExtB'"; o.textContent = '已加载：' + f.name;
+    $('font').appendChild(o); $('font').value = o.value; refresh();
+  } catch (e) { alert('字体加载失败：' + e.message); }
+};
+$('dl').onclick = () => {
+  if (!$('out').value) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([$('out').value], {type: 'application/json'}));
+  a.download = `residentNameMsg_${$('name').value.trim()}.json`; a.click();
+};
+$('copy').onclick = () => { navigator.clipboard.writeText($('out').value).then(() => { $('outMsg').textContent += '（已复制）'; }); };
+$('libExport').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(lib)], {type: 'application/json'})); a.download = '手绘字库.json'; a.click();
+};
+$('libImport').onchange = async () => {
+  const f = $('libImport').files[0]; if (!f) return;
+  try { Object.assign(lib, JSON.parse(await f.text())); saveLib(); refresh(); } catch (e) { alert('导入失败：' + e.message); }
+};
+
+// ?auto=<name>[&room=..][&campus=..][&seq=..] : headless hook (writes the JSON or "ERROR ..." into #auto-out).
+// SAM | 2026-11-04 +08:00 | Seq is the current time unless &seq= is given (still checked: not before 2026-01-01).
+const params = new URLSearchParams(location.search), auto = params.get('auto');
+let autoSeq = false;
+if (auto) {
+  $('name').value = auto;
+  if (params.has('room')) $('room').value = params.get('room');
+  if (params.has('campus')) $('campus').value = params.get('campus');
+  if (params.has('seq')) { $('seq').value = params.get('seq'); autoSeq = true; }
+}
+document.fonts.ready.then(() => { showLib(); refresh(); sel = nameChars()[0] || null; loadEditor(); refresh(); });
+</script>
+</body>
+</html>

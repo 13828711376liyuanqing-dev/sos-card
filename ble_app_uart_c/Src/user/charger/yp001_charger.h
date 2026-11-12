@@ -23,6 +23,8 @@ typedef struct {
     uint8_t power_raw, pre_term_raw, timer_raw, fine_raw;
     uint8_t fault_history;
     uint16_t precharge_ma, termination_ma;
+    /* SAM | 2026-11-12 22:40 +08:00 | Preserve REG00 bit5 because current-limit decoding hides the FAE diagnostic bit. */
+    uint8_t input_raw;
 } yp001_charger_status_t;
 
 typedef struct {
@@ -34,6 +36,8 @@ typedef struct {
 /* Probe only. Does not change charger registers, nCE, nQON or the BATFET. */
 bool yp001_charger_probe(void);
 bool yp001_charger_read_status(yp001_charger_status_t *status);
+/* SAM | 2026-11-12 22:40 +08:00 | Read power bytes before boot configuration and sleep without consuming REG09. */
+bool yp001_charger_power_snapshot(const char *stage);
 
 /* SAM | 2026-10-09 21:25 +08:00 | Boot verifies disabled parameters before
  * poll auto-starts on stable input. This is not a hardware power-on inhibit. */
@@ -61,6 +65,9 @@ bool yp001_charger_live_input(yp001_charger_status_t *status);
  * lock is visible to CLI/business/display so no task restarts during cutoff. */
 bool yp001_charger_ship_locked(void);
 void yp001_charger_ship_key_sample(bool pressed);
+/* SAM | 2026-11-08 20:30 +08:00 | One request owns the asynchronous job, including internal prepare and confirm. */
+bool yp001_charger_ship_start(void);
+void yp001_charger_ship_auto_snapshot(uint8_t *phase,const char **reason);
 bool yp001_charger_ship_prepare(void);
 bool yp001_charger_ship_confirm(uint32_t token);
 bool yp001_charger_ship_cancel(void);

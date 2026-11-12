@@ -1,0 +1,986 @@
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+AIR780EGH
+Power&4G
+VCC_4V2_4G_EN:
+SIM
+Audio&PA
+VCC_PAÎªPA¹©µç
+VCC_PA_EN:
+Îª1Ê±¿ªÆô£¬Îª0Ê±¹Ø±Õ¡£ LOUD SPEAKER
+LDO£º4V2 to 3V3 Audio&MIC
+UPDATE_CHECK
+ON
+BOOT
+Title
+Company Name Heyuedm Technology Co.Ltd
+Designed by
+Approved by
+Version
+Date
+(cid:10)
+(cid:10)
+81C
+Fu1
+(cid:10) (cid:10) (cid:10)
+(cid:10)
+(cid:10)
+D5 D6 D7
+D4
+GND
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+Hn2.2/CN
+1L
+11C
+Fn001
+21C
+Fp33
+(cid:10)
+(cid:10) (cid:10) (cid:10)
+(cid:10)(cid:10) (cid:10)(cid:10)
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+D12
+D11 1N5817 D8
+A2 1K
+RESET
+EXT
+UART1_RX DBG_RXD
+UART_TX DBG_TXD
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+Fu1
+83C
+Fu1
+93C
+(cid:10)
+(cid:10)
+(cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10)
+(cid:10) (cid:10) (cid:10) (cid:10)
+(cid:10) (cid:10) (cid:10) (cid:10)
+(cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10)
+U6
+AUDIO_CODEC_8311
+11 AVDD DACREF 14 4 DVDD ADCREF 15 C41 1uF 3 PVDD VMID 16
+2 MCLK AGND 10
+6 SCLK PGND 21
+8 LRCK DGND 5 7 ASDOT 9 DSDIN MIC1P 18
+MIC1N 17
+1 CCLK 19 CDATA OUTN 13 20 CE OUTP 12
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+Fu1
+64C
+Fu1.0
+74C
+Fu1
+84C
+Fu1
+24C
+Fu01
+54C
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10) (cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10) (cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10) (cid:10)
+(cid:10) (cid:10) (cid:10) (cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10)
+C10
+220uF/6.3V
+C57 10uF
+C58 1uF
+D15
+C70
+33pF
+0R R40 J1
+C53 1uF
+C71 1
+10K R39 100pF 2
+22nF C55
+0R R41 SPK
+10K R38 22nF C54
+D17
+C40 1uF
+C50 1uF
+C49 1uF
+C51 1uF
+C43 1uF 10K R31 C44 1uF
+(cid:10)
+(cid:10)
+Fp33
+27C
+(cid:10) (cid:10)
+R1 0R
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+CN
+5C
+CN
+4C
+CN
+21R
+(cid:10) (cid:10)
+R3 0R
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+K001
+76R
+K01
+46R
+CN
+8C
+CN
+9C
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+R65 10K
+R66 1K
+R36 1K
+R33 22R
+R34 22R
+R35 22R
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+K001
+05R
+K01
+91R
+K01
+03R
+K001
+73R
+R015
+4K2R1
+52R
+K1
+62RR015
+72R
+Fu1.0
+96C
+(cid:10) (cid:10)
+R23 1K
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+97C
+Fu01
+K01
+68R
+Fp001
+28C
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+R87 10K
+R88 1K
+(cid:10)
+(cid:10)
+K001
+98R
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+1 GND
+2 GNSS_ANT
+3 NC
+4 NC
+5 NC
+6 NC
+7 PWRKEY
+8 NC
+9 ADC0
+10
+GND
+11
+USIM_DAT
+12 USIM_RST
+13
+USIM_CLK
+R95 0R
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+41
+DDV_MISU
+51
+N_TESER
+61
+72OIPG
+71
+81OIPG/DXR_1TRAU
+81
+91OIPG/DXT_1TRAU
+91
+22OIPG
+02
+42OIPG/1MWP
+12
+CN
+22
+1OIPG/0MWP
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+35 LTE_ANT
+34 GND
+33 I2S_DOUT/GPIO32
+32 I2S_DIN/GPIO31
+31 I2S_LRCK/GPIO30
+30 I2S_BCLK/GPIO29
+29 NC
+28 NC
+27 GND
+26
+I2S_MCLK/GPIO33
+25
+CAN_TXD/GPIO26
+24 VDD_EXT
+23
+ONEWIRE/GPIO2
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+89
+59
+DDV_SSNG
+DNG
+44
+CN
+34
+TABV
+24
+TABV
+14
+DNG
+04
+DNG
+93
+DXT_GBD
+83
+DXR_GBD
+73
+DNG
+63
+DNG
+79
+69
+61OIPG
+1CDA
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10) (cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+45 GND
+46 GND
+47 GND
+48 GND
+49 LCD_RST/GPIO36
+50 LCD_SDA/GPIO37
+U1-A AIR780EGH 51 LCD_RS/GPIO38
+52 LCD_CS/GPIO35
+53 LCD_CLK/GPIO34
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+45
+3OIPG/KLCM_MAC
+55
+!!/6OIPG/0XR_MAC
+65
+7OIPG/1XR_MAC
+75
+51OIPG/DXT_3TRAU
+85
+41OIPG/DXR_3TRAU
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+67 I2C1_SCL/GPIO18
+66 I2C1_SDA/GPIO19
+65 USIM2_VDD/!!
+64 USIM2_DAT/!!
+63 USIM2_RST/!!
+62 USIM2_CLK/!!
+61 VBUS
+60
+USB_DM
+59
+USB_DP
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+27
+DNG
+17
+DNG
+07
+DNG
+96
+CN
+86
+CN
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+99 VREF/GPIO23/!!
+100
+GPIO17
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+101
+0PUEKAW
+201
+02OIPG
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+104 NC
+103
+GND
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+601
+52OIPG/DXR_NAC
+501
+CN
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+73
+GND
+74
+NC
+75 CHG_DET/WAKEUP6
+76
+ADC3
+77
+ADC2
+78
+CAN_STB/GPIO28
+79 USIM_DET/WAKEUP2
+80 81
+CAM_BCLK/GPIO4/!! CAM_CS/GPIO5/!!
+U1-B
+AIR780EGH
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+98
+DNG
+09
+12OIPG
+DNG
+701
+19
+DNG
+SPP1
+801
+29
+DNG
+49
+CN
+DNG
+901
+39
+DNG
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+U1-C 88
+GND
+AIR780EGH
+87
+NC
+86 SPI0_CLK/GPIO11
+85
+SPI0_MOSI/GPIO9
+84
+SPI0_MISO/GPIO10
+83
+SPI0_CS/GPIO8
+82 USB_BOOT
+1 2
+(cid:10) (cid:10) (cid:10)
+71R R0 R6021
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+1 G
+R44 0R
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+3
+D
+S
+2
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10) (cid:10) (cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10) (cid:10) (cid:10)
+(cid:10)
+Q1201
+SME20N01DD
+1 G
+U11
+4 IN OUT 1
+3 EN
+2 GND NC 5
+SGM2031-3.3V
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+3
+D
+S
+2
+(cid:10) (cid:10)
+Q11 SME20N01DD
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+9
+DNG
+01
+DNG
+11
+DNG
+(cid:10) (cid:10) (cid:10) (cid:10)
+(cid:10) (cid:10)
+5 1 GND VCC
+3 CLK
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+21
+DNG
+31
+DNG
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+6 2
+VPP RST
+7 I/O
+4
+CD
+(cid:10)
+(cid:10)
+8
+DNG
+(cid:10)
+(cid:10)
+CON1
+SIM_HZSM-B0OT-0613XOA
+(cid:10) (cid:10)
+1 G
+(cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10) (cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10) (cid:10) (cid:10)
+(cid:10) (cid:10) (cid:10) (cid:10)
+Q12
+S D
+2 3
+1 8 SDB OUTP
+2 7
+BYPASS GND
+3 6 INP VDD
+4 5 INN OUTN
+(cid:10)
+(cid:10)
+9
+DNG
+(cid:10)
+(cid:10)
+U5
+HAA9209
+(cid:10)
+(cid:10)
+102C
+Fp022
+(cid:10) (cid:10)
+(cid:10)
+(cid:10) (cid:10) (cid:10)
+1 MIC+
+SOLDER1P
+1 MIC- SOLDER1P
+(cid:10)
+(cid:10)
+K8.6
+87R
+(cid:10) (cid:10) (cid:10) (cid:10)
+G 112K R82
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+3
+D
+S
+2
+(cid:10)
+(cid:10)
+Q10
+SME20N01DD
+(cid:10) (cid:10)
+1 G
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10) (cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10) (cid:10)
+(cid:10) (cid:10) (cid:10)
+(cid:10) (cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+ANT3
+20369-001E
+2 GND
+3 GNDIN 1
+4 GND
+ANT2
+20369-001E
+2 GND
+3 GNDIN 1 4 GND
+1 SHDN//SDB
+S D 2
+2 3 NC
+Q2 3 CP
+4
+VDD
+5
+NC
+(cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10)
+6 NNI 7 PNI 8 DDV 9 SF 01 CN
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+15 VOP//OUT+
+14 GND
+13
+VON//OUT-
+12 PVDD//AVIN
+11
+NC
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+02
+DNG
+91
+NC
+81
+NIVA//DDVP
+71
+NIVA//DDVP
+61
+CN
+(cid:10) (cid:10) (cid:10) (cid:10)
+21 GND U901 K-QFN-20
+(cid:10) (cid:10)
+V01_Fu01 329C
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+VCC_4G
+LTE_ANT
+[2]
+PWRKEY
+[1,2]
+GNSS_VDD [2]
+C921
+4.7uF
+V_SIM
+[2]
+PWRKEY [1,2]
+RESET_IN [2]
+USB_BOOT [2]
+VDD_EXT [2]
+UART4_RXD[1,2]
+UART4_TXD[1,2]
+(cid:10)
+(cid:10)
+]2[
+DDV_SSNG
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+[2] SIM_DATA
+[2] SIM_RST
+[2] SIM_CLK
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+MIS_V
+]2[
+NI_TESER
+]2[
+DXT_4TRAU]2,1[ DXR_4TRAU]2,1[
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+LTE_ANT [2]
+VDD_EXT [2]
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+]2[
+DXT_GBD
+]2[
+DXR_GBD
+(cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)(cid:10)
+(cid:10)(cid:10) (cid:10)(cid:10) (cid:10) (cid:10) (cid:10)(cid:10)
+(cid:10)
+(cid:10) (cid:10) (cid:10) (cid:10) (cid:10) (cid:10)
+VCC_4G
+USB_BOOT [2]
+I2C_SCL [2]
+I2C_SDA [2]
+I2S_DOUT [2]
+I2S_DIN [2]
+I2S_LRCK [2]
+I2S_BCK [2]
+USB_DM_4G [3]
+USB_DP_4G [3]
+I2S_MCLK [2]
+VCC_SYS
+8311_3.3V
+8311_3.3V
+8311_3.3V
+I2S_MCLK
+I2S_B[C2K]
+I2S_LR[C2K] I2S_D[I2N] DBG_RXD [2] I2S_DO[U2T]
+[2]
+[2] I2C_SCL DBG_TXD [2] [2] I2C_SDA
+(cid:10)
+(cid:10)
+NE_REWOPOIDUA]2[
+(cid:10)
+(cid:10) (cid:10) (cid:10) (cid:10)
+8311_3.3V
+OUT_N [2] OUT_P [2]
+(cid:10)
+(cid:10)
+NE_APOIDUA]2[
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+(cid:10) (cid:10) (cid:10) (cid:10)
+(cid:10)
+(cid:10)
+(cid:10)
+VCC_4G_EN [1]
+VCC_4G
+VDD_PA
+AUDIOPA_EN [2]
+VCC_PA_EN [2]
+OUT_P
+[2]
+SIM_RST
+[2]
+SIM_CLK
+[2] OUT_N SIM_DATA [2]
+[2]
+AUDIOPOWER_EN
+[2]
+(cid:10) (cid:10)
+(cid:10)
+2GIRT_TOM NE_AP_CCV]2[
+(cid:10) (cid:10)
+(cid:10)
+(cid:10) (cid:10)
+(cid:10)
+(cid:10)
+VBUS [1,2,3](cid:10)
+VCC_4G
+VBUS [1,2,3](cid:10)
+VDD_PA
+VCC_4G
